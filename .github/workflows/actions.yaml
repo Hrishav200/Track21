@@ -21,27 +21,57 @@ jobs:
       - name: Install xcpretty
         run: sudo gem install xcpretty
 
-      # If your project uses a .xcworkspace (CocoaPods/SwiftPM workspace), switch -project to -workspace.
-      
-      - name: Build & Test (auto-pick simulator)
+      - name: Create & boot an iPhone simulator
+        id: sim
+        shell: bash
         run: |
           set -euo pipefail
 
-          # Grab the first available iPhone simulator’s UDID
-          UDID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')"
-          if [ -z "${UDID:-}" ]; then
-            echo "No available iPhone simulators found"; exit 1
+          # Pick first available iOS runtime (e.g., iOS 18.x on Xcode 16)
+          RUNTIME=$(xcrun simctl list runtimes | awk -F '[()]' '/iOS .* (available)/ {print $2; exit}')
+          if [ -z "${RUNTIME:-}" ]; then
+            echo "No available iOS runtime found. Is Xcode properly selected?" >&2
+            exit 1
           fi
+          echo "Using runtime: $RUNTIME"
 
-          echo "Using simulator UDID: $UDID"
-          # Boot (no-op if it’s already booted)
+          # Pick an iPhone device type (prefer 16 Pro, fallback to 16, then any iPhone)
+          DEVTYPE=$(xcrun simctl list devicetypes | awk -F '[()]' '/iPhone 16 Pro/ {print $1; exit}')
+          if [ -z "${DEVTYPE:-}" ]; then
+            DEVTYPE=$(xcrun simctl list devicetypes | awk -F '[()]' '/iPhone 16$/ {print $1; exit}')
+          fi
+          if [ -z "${DEVTYPE:-}" ]; then
+            DEVTYPE=$(xcrun simctl list devicetypes | awk -F '[()]' '/^iPhone / {print $1; exit}')
+          fi
+          if [ -z "${DEVTYPE:-}" ]; then
+            echo "No iPhone device type found." >&2
+            exit 1
+          fi
+          echo "Using device type: $DEVTYPE"
+
+          # Create simulator
+          UDID=$(xcrun simctl create "CI iPhone" "$DEVTYPE" "$RUNTIME")
+          echo "Created simulator: $UDID"
+
+          # Boot and wait until fully ready
           xcrun simctl boot "$UDID" || true
-
-          # OPTIONAL: Wait for boot to be fully ready
           xcrun simctl bootstatus "$UDID" -b
 
+          # Expose UDID to later steps
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Test (Simulator)
+        run: |
+          set -o pipefail
           xcodebuild \
             -scheme "Track21" \
-            -destination "platform=iOS Simulator,id=$UDID" \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -enableCodeCoverage YES \
             clean test | xcpretty
+
+      - name: Archive logs on failure
+        if: failure()
+        run: |
+          mkdir -p build-logs
+          cp -R ~/Library/Logs/DerivedData build-logs || true
