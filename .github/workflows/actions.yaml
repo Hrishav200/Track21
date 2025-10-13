@@ -1,23 +1,32 @@
-#
-//  actions.yml
-//  Track21
-//
-//  Created by Hrishav Sunar on 13/10/2025.
-//
-
 name: iOS CI
+
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: ["main"]
+  pull_request:
+
 jobs:
   build-test:
     runs-on: macos-14
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: maxim-lobanov/setup-xcode@v1
-        with: { xcode-version: "16.0" }
-      - name: Build & Test
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.0"
+
+      - name: Install xcpretty
+        run: sudo gem install xcpretty
+
+      # If your project uses a .xcworkspace (CocoaPods/SwiftPM workspace), switch -project to -workspace.
+      - name: Build & Test (Simulator)
         run: |
           set -o pipefail
-          xcodebuild -scheme track21 -destination 'platform=iOS Simulator,name=iPhone 15' clean test | xcpretty
+          xcodebuild \
+            -scheme "Track21" \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -enableCodeCoverage YES \
+            clean test | xcpretty
