@@ -35,6 +35,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		9410B7742E9D1989006EBB17 /* .github */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = .github;
+			sourceTree = "<group>";
+		};
 		94319C332E96742000CCF6A3 /* Track21 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Track21;
@@ -81,6 +86,7 @@
 			isa = PBXGroup;
 			children = (
 				9410B7722E9D1082006EBB17 /* HomeView.swift */,
+				9410B7742E9D1989006EBB17 /* .github */,
 				94319C332E96742000CCF6A3 /* Track21 */,
 				94319C432E96742100CCF6A3 /* Track21Tests */,
 				94319C4D2E96742100CCF6A3 /* Track21UITests */,
@@ -114,6 +120,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				9410B7742E9D1989006EBB17 /* .github */,
 				94319C332E96742000CCF6A3 /* Track21 */,
 			);
 			name = Track21;
