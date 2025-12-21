@@ -7,20 +7,19 @@
 
 import SwiftUI
 
+
 struct HomeView: View {
-    var viewModel: HabitViewModel
-    
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                HeaderView(viewModel: viewModel)
+                HeaderView()
                 
                 VStack(spacing: 16) {
-                    DayProgressCard(viewModel: viewModel)
+                    DayProgressCard()
                     
-                    TodayProgressView(viewModel: viewModel)
+                    TodayProgressView()
                     
-                    MyHabitsSection(viewModel: viewModel)
+                    MyHabitsSection()
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 100)
@@ -30,11 +29,3 @@ struct HomeView: View {
         .edgesIgnoringSafeArea(.top)
     }
 }
-└── Views/
-    ├── ContentView.swift
-    ├── HabitListView.swift
-    ├── HabitRowView.swift
-    ├── AddHabitView.swift
-    ├── HabitDetailView.swift
-    ├── CalendarGridView.swift
-    └── EmptyStateView.swift
