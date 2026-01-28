@@ -6,9 +6,11 @@
 //
 import SwiftUI
 
+import SwiftUI
+
 struct HabitCardView: View {
-    let habit: MockHabit
-    let isCompleted: Bool
+    let habit: Habit
+    var viewModel: HabitViewModel
     
     var body: some View {
         HStack {
@@ -24,16 +26,20 @@ struct HabitCardView: View {
             
             Spacer()
             
-            Text(isCompleted ? "Completed" : "Incomplete")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(isCompleted ? Color(hex: "5DD167") : .secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(isCompleted ? Color(hex: "5DD167").opacity(0.15) : Color.clear)
-                .cornerRadius(8)
+            Button(action: {
+                viewModel.toggleHabitCompletion(habit)
+            }) {
+                Text(habit.isCompletedToday() ? "Completed" : "Incomplete")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(habit.isCompletedToday() ? Color(hex: "5DD167") : .secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(habit.isCompletedToday() ? Color(hex: "5DD167").opacity(0.15) : Color.clear)
+                    .cornerRadius(8)
+            }
         }
         .padding()
-        .background(Color(hex: habit.color).opacity(0.15))
+        .background(habit.color.opacity(0.15))
         .cornerRadius(12)
     }
 }

@@ -8,6 +8,7 @@ import SwiftUI
 
 struct CustomTabBar: View {
     @Binding var selectedTab: Int
+    @Binding var showingAddHabit: Bool
     
     var body: some View {
         HStack {
@@ -18,9 +19,7 @@ struct CustomTabBar: View {
             }
             .frame(maxWidth: .infinity)
             
-            Button(action: {
-                // Add habit action - will implement later
-            }) {
+            Button(action: { showingAddHabit = true }) {
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)

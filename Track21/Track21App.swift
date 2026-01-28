@@ -6,14 +6,18 @@
 //
 
 import SwiftUI
-import SwiftData
 
 @main
 struct Track21App: App {
-
+    @State private var authService = AuthService()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if authService.isAuthenticated {
+                ContentView(authService: authService)
+            } else {
+                LoginView(authService: authService)
+            }
         }
     }
 }

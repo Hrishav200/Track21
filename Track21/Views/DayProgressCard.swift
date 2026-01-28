@@ -8,24 +8,31 @@
 import SwiftUI
 
 struct DayProgressCard: View {
+    var viewModel: HabitViewModel
+    
     var body: some View {
         VStack(spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Day 5 of 21")
-                        .font(.system(size: 20, weight: .bold))
-                    Text("Start Date: Jan 15, 2025 | End Date: Feb 5, 2025")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                    if let firstHabit = viewModel.habits.first {
+                        Text("Day \(firstHabit.currentDay) of 21")
+                            .font(.system(size: 20, weight: .bold))
+                        Text("Start Date: \(firstHabit.startDate, style: .date) | End Date: \(firstHabit.endDate, style: .date)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("No habits yet")
+                            .font(.system(size: 20, weight: .bold))
+                    }
                 }
                 
                 Spacer()
                 
-                Text("19 Jan, 2025")
+                Text(Date(), style: .date)
                     .font(.system(size: 14, weight: .medium))
             }
             
-            WeeklyCalendarView()
+            WeeklyCalendarView(viewModel: viewModel)
         }
         .padding()
         .background(Color.white)
