@@ -11,11 +11,12 @@ struct HomeView: View {
     @Bindable var viewModel: HabitViewModel
     @State private var selectedHabit: Habit?
     @State private var showingAddHabit = false
+    var onProfileTap: () -> Void = {}
     
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                HeaderView(viewModel: viewModel)
+                HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
                 
                 VStack(spacing: 16) {
                     DayProgressCard(habit: selectedHabit)

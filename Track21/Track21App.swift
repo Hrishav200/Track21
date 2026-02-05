@@ -11,11 +11,16 @@ import SwiftUI
 struct Track21App: App {
     @State private var authService = AuthService()
     @State private var viewModel = HabitViewModel()
+    @State private var profileService = ProfileService()
     
     var body: some Scene {
         WindowGroup {
             if authService.isAuthenticated {
-                ContentView(authService: authService, viewModel: viewModel)
+                ContentView(
+                    authService: authService,
+                    viewModel: viewModel,
+                    profileService: profileService
+                )
             } else {
                 LoginView(authService: authService)
             }
