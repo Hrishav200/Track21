@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import Auth
 
 struct ProfileView: View {
     @Bindable var authService: AuthService
