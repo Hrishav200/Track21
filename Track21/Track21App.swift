@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import Supabase
+internal import Auth
 
 @main
 struct Track21App: App {
