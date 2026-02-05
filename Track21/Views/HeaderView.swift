@@ -7,12 +7,14 @@
 import SwiftUI
 
 struct HeaderView: View {
+    var viewModel: HabitViewModel
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color(hex: "5DD167")
             
             VStack(alignment: .leading, spacing: 4) {
-                Text("Hi John!")
+                Text("Hi \(viewModel.userName)!")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
                 

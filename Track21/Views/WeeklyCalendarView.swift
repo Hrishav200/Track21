@@ -26,7 +26,7 @@ struct WeeklyCalendarView: View {
         HStack(spacing: 12) {
             ForEach(Array(currentWeekDates.enumerated()), id: \.offset) { index, date in
                 VStack(spacing: 4) {
-                    Text(weekDays[index])
+                    Text(weekDays[Calendar.current.component(.weekday, from: date) - 1])
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     
