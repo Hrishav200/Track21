@@ -14,14 +14,15 @@ final class Habit {
     var goal: String
     var color: String
     var startDate: Date
-    var completedDates: [Date]
+    var completedDates: [Date] = []
     
-    init(name: String, goal: String, color: String, startDate: Date = Date()) {
+    // MARK: - Initializer
+    init(name: String, goal: String, color: String, startDate: Date, completedDates: [Date] = []) {
         self.name = name
         self.goal = goal
         self.color = color
         self.startDate = startDate
-        self.completedDates = []
+        self.completedDates = completedDates.map { Calendar.current.startOfDay(for: $0) }
     }
     
     // MARK: - Computed Properties

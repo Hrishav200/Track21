@@ -17,7 +17,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                HeaderView(viewModel: viewModel)
+                HeaderView(viewModel: HabitViewModel())
                 
                 VStack(spacing: 16) {
                     DayProgressCard(habit: selectedHabit)

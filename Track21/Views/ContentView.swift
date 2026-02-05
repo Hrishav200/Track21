@@ -5,9 +5,8 @@
 //  Created by Hrishav Sunar on 22/12/2025.
 //
 
-
 import SwiftUI
-internal import Auth
+import Auth
 
 struct ContentView: View {
     @Bindable var authService: AuthService
@@ -18,7 +17,7 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                HomeView(viewModel: viewModel, authService: authService)
+                HomeView()
                     .tag(0)
                 
                 Text("Stats View")
@@ -29,7 +28,7 @@ struct ContentView: View {
         }
         .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(viewModel: viewModel, authService: authService)
+            AddHabitView()
         }
         .task {
             // Auto-sync when app opens
