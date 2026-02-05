@@ -47,9 +47,13 @@ class HabitViewModel {
     }
     
     func deleteHabit(_ habit: Habit) async {
-        // Delete from cloud first
-        if let userId = habit.userId {
-            try? await syncService.deleteHabit(habit)
+        // Delete from cloud first if user is set
+        if habit.userId != nil {
+            do {
+                try await syncService.deleteHabit(habit)
+            } catch {
+                print("Failed to delete habit from cloud: \(error)")
+            }
         }
         
         // Remove from local
@@ -85,16 +89,26 @@ class HabitViewModel {
         }
     }
     
+    func saveUserName(_ name: String) {
+        userName = name
+        UserDefaults.standard.set(name, forKey: userNameKey)
+    }
+    
     private func saveHabits() {
-        if let encoded = try? JSONEncoder().encode(habits) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let encoded = try? encoder.encode(habits) {
             UserDefaults.standard.set(encoded, forKey: saveKey)
         }
     }
     
     private func loadHabits() {
-        if let data = UserDefaults.standard.data(forKey: saveKey),
-           let decoded = try? JSONDecoder().decode([Habit].self, from: data) {
-            habits = decoded
+        if let data = UserDefaults.standard.data(forKey: saveKey) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let decoded = try? decoder.decode([Habit].self, from: data) {
+                habits = decoded
+            }
         }
     }
     

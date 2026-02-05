@@ -87,10 +87,17 @@ struct AddHabitView: View {
     
     private func addHabit() {
         let habit = Habit(
+            id: UUID(),
             name: name,
             goal: goal,
             color: selectedColor,
-            startDate: startDate
+            startDate: startDate,
+            completedDates: [],
+            userId: nil,
+            syncStatus: .pending,
+            createdAt: Date(),
+            updatedAt: nil,
+            deletedAt: nil
         )
         modelContext.insert(habit)
         dismiss()

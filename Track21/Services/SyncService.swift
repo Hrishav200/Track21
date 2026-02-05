@@ -47,7 +47,7 @@ class SyncService {
     }
     
     private func fetchRemoteHabits(userId: UUID) async throws -> [Habit] {
-        let response: [Habit] = try await supabase
+        let response: [HabitDTO] = try await supabase
             .from("habits")
             .select()
             .eq("user_id", value: userId)
@@ -55,7 +55,7 @@ class SyncService {
             .execute()
             .value
         
-        return response
+        return response.map { $0.toHabit() }
     }
     
     private func mergeHabits(local: [Habit], remote: [Habit]) -> [Habit] {
@@ -87,14 +87,12 @@ class SyncService {
         let pendingHabits = habits.filter { $0.syncStatus == .pending }
         
         for habit in pendingHabits {
-            var habitToUpload = habit
-            habitToUpload.userId = userId
-            habitToUpload.updatedAt = Date()
+            let dto = HabitDTO(from: habit, userId: userId)
             
             // Upsert habit
             try await supabase
                 .from("habits")
-                .upsert(habitToUpload)
+                .upsert(dto)
                 .execute()
         }
     }
@@ -114,7 +112,7 @@ class SyncService {
             // Merge with local dates
             var allDates = Set(habit.completedDates)
             for remoteDate in remoteDates {
-                allDates.insert(remoteDate.completedDate)
+                allDates.insert(Calendar.current.startOfDay(for: remoteDate.completedDate))
             }
             
             updatedHabits[index].completedDates = Array(allDates).sorted()
@@ -143,8 +141,62 @@ class SyncService {
     func deleteHabit(_ habit: Habit) async throws {
         try await supabase
             .from("habits")
-            .update(["deleted_at": Date()])
+            .update(["deleted_at": ISO8601DateFormatter().string(from: Date())])
             .eq("id", value: habit.id)
             .execute()
+    }
+}
+
+// MARK: - DTO for Supabase
+
+struct HabitDTO: Codable {
+    let id: UUID
+    let name: String
+    let goal: String
+    let color: String
+    let startDate: Date
+    let userId: UUID
+    let createdAt: Date
+    let updatedAt: Date?
+    let deletedAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case goal
+        case color
+        case startDate = "start_date"
+        case userId = "user_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case deletedAt = "deleted_at"
+    }
+    
+    init(from habit: Habit, userId: UUID) {
+        self.id = habit.id
+        self.name = habit.name
+        self.goal = habit.goal
+        self.color = habit.color
+        self.startDate = habit.startDate
+        self.userId = userId
+        self.createdAt = habit.createdAt
+        self.updatedAt = Date()
+        self.deletedAt = habit.deletedAt
+    }
+    
+    func toHabit() -> Habit {
+        Habit(
+            id: id,
+            name: name,
+            goal: goal,
+            color: color,
+            startDate: startDate,
+            completedDates: [],
+            userId: userId,
+            syncStatus: .synced,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt
+        )
     }
 }

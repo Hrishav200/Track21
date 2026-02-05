@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Auth
+import SwiftData
 
 struct ContentView: View {
     @Bindable var authService: AuthService
@@ -20,7 +20,7 @@ struct ContentView: View {
                 HomeView()
                     .tag(0)
                 
-                Text("Stats View")
+                StatsView()
                     .tag(1)
             }
             
@@ -38,4 +38,3 @@ struct ContentView: View {
         }
     }
 }
-
