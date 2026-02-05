@@ -20,14 +20,23 @@ struct MyHabitsSection: View {
             if viewModel.habits.isEmpty {
                 EmptyHabitsView()
             } else {
+                // Incomplete habits section
                 if !viewModel.incompleteHabits.isEmpty {
                     ForEach(viewModel.incompleteHabits) { habit in
                         HabitCardView(
                             habit: habit,
                             isCompleted: false,
                             isSelected: selectedHabit?.id == habit.id,
-                            onToggle: { viewModel.toggleHabitCompletion(habit) }
+                            onToggle: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    viewModel.toggleHabitCompletion(habit)
+                                }
+                            }
                         )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 if selectedHabit?.id == habit.id {
@@ -40,19 +49,30 @@ struct MyHabitsSection: View {
                     }
                 }
                 
+                // Completed habits section
                 if !viewModel.completedHabits.isEmpty {
-                    Text("Completed Today")
+                    Text("Completed Today ✓")
                         .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color(hex: "5DD167"))
                         .padding(.horizontal, 4)
                         .padding(.top, 8)
+                        .transition(.opacity)
                     
                     ForEach(viewModel.completedHabits) { habit in
                         HabitCardView(
                             habit: habit,
                             isCompleted: true,
                             isSelected: selectedHabit?.id == habit.id,
-                            onToggle: { viewModel.toggleHabitCompletion(habit) }
+                            onToggle: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    viewModel.toggleHabitCompletion(habit)
+                                }
+                            }
                         )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 if selectedHabit?.id == habit.id {
@@ -66,6 +86,8 @@ struct MyHabitsSection: View {
                 }
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.incompleteHabits.map(\.id))
         .offset(y: -30)
     }
 }
