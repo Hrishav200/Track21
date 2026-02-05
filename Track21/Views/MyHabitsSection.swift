@@ -4,19 +4,21 @@
 //
 //  Created by Hrishav Sunar on 22/12/2025.
 //
+
 import SwiftUI
+import SwiftData
 
 struct MyHabitsSection: View {
-    // Mock data
-    let incompleteHabits = [
-        MockHabit(name: "Do Exercise", goal: "1h", color: "FFB6A3"),
-        MockHabit(name: "Running", goal: "3km", color: "6BB6FF")
-    ]
+    @Query private var habits: [Habit]
+    @Binding var selectedHabit: Habit?
     
-    let completedHabits = [
-        MockHabit(name: "Study", goal: "2h", color: "5DD167"),
-        MockHabit(name: "Meditation", goal: "30min", color: "5DD167")
-    ]
+    private var incompleteHabits: [Habit] {
+        habits.filter { !$0.isCompleted(on: Date()) }
+    }
+    
+    private var completedHabits: [Habit] {
+        habits.filter { $0.isCompleted(on: Date()) }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -24,27 +26,56 @@ struct MyHabitsSection: View {
                 .font(.system(size: 18, weight: .bold))
                 .padding(.horizontal, 4)
             
-            ForEach(incompleteHabits, id: \.name) { habit in
-                HabitCardView(habit: habit, isCompleted: false)
-            }
-            
-            Text("Completed")
-                .font(.system(size: 16, weight: .semibold))
-                .padding(.horizontal, 4)
-                .padding(.top, 8)
-            
-            ForEach(completedHabits, id: \.name) { habit in
-                HabitCardView(habit: habit, isCompleted: true)
+            if habits.isEmpty {
+                Text("No habits yet. Add your first habit!")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .padding()
+            } else {
+                if !incompleteHabits.isEmpty {
+                    ForEach(incompleteHabits) { habit in
+                        HabitCardView(
+                            habit: habit,
+                            isCompleted: false,
+                            isSelected: selectedHabit?.id == habit.id
+                        )
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if selectedHabit?.id == habit.id {
+                                    selectedHabit = nil
+                                } else {
+                                    selectedHabit = habit
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if !completedHabits.isEmpty {
+                    Text("Completed Today")
+                        .font(.system(size: 16, weight: .semibold))
+                        .padding(.horizontal, 4)
+                        .padding(.top, 8)
+                    
+                    ForEach(completedHabits) { habit in
+                        HabitCardView(
+                            habit: habit,
+                            isCompleted: true,
+                            isSelected: selectedHabit?.id == habit.id
+                        )
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if selectedHabit?.id == habit.id {
+                                    selectedHabit = nil
+                                } else {
+                                    selectedHabit = habit
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         .offset(y: -30)
     }
 }
-
-// MARK: - Mock Data Structure
-struct MockHabit {
-    let name: String
-    let goal: String
-    let color: String
-}
-

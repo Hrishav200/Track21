@@ -10,10 +10,11 @@ import SwiftData
 
 @main
 struct Track21App: App {
-
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: Habit.self)
     }
 }

@@ -8,24 +8,46 @@
 import SwiftUI
 
 struct DayProgressCard: View {
+    let habit: Habit?
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter
+    }
+    
+    private var todayFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM, yyyy"
+        return formatter
+    }
+    
     var body: some View {
         VStack(spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Day 5 of 21")
-                        .font(.system(size: 20, weight: .bold))
-                    Text("Start Date: Jan 15, 2025 | End Date: Feb 5, 2025")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                    if let habit = habit {
+                        Text("Day \(habit.currentDay) of 21")
+                            .font(.system(size: 20, weight: .bold))
+                        Text("Start: \(dateFormatter.string(from: habit.startDate)) | End: \(dateFormatter.string(from: habit.endDate))")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Select a habit")
+                            .font(.system(size: 20, weight: .bold))
+                        Text("Tap a habit below to see its progress")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Spacer()
                 
-                Text("19 Jan, 2025")
+                Text(todayFormatter.string(from: Date()))
                     .font(.system(size: 14, weight: .medium))
             }
             
-            WeeklyCalendarView()
+            WeeklyCalendarView(habit: habit)
         }
         .padding()
         .background(Color.white)
@@ -33,4 +55,8 @@ struct DayProgressCard: View {
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         .offset(y: -50)
     }
+}
+
+#Preview {
+    DayProgressCard(habit: nil)
 }
