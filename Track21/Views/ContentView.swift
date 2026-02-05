@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import Auth
 
 struct ContentView: View {
     @Bindable var authService: AuthService
