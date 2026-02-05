@@ -6,19 +6,10 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct MyHabitsSection: View {
-    @Query private var habits: [Habit]
+    @Bindable var viewModel: HabitViewModel
     @Binding var selectedHabit: Habit?
-    
-    private var incompleteHabits: [Habit] {
-        habits.filter { !$0.isCompleted(on: Date()) }
-    }
-    
-    private var completedHabits: [Habit] {
-        habits.filter { $0.isCompleted(on: Date()) }
-    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -26,18 +17,16 @@ struct MyHabitsSection: View {
                 .font(.system(size: 18, weight: .bold))
                 .padding(.horizontal, 4)
             
-            if habits.isEmpty {
-                Text("No habits yet. Add your first habit!")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .padding()
+            if viewModel.habits.isEmpty {
+                EmptyHabitsView()
             } else {
-                if !incompleteHabits.isEmpty {
-                    ForEach(incompleteHabits) { habit in
+                if !viewModel.incompleteHabits.isEmpty {
+                    ForEach(viewModel.incompleteHabits) { habit in
                         HabitCardView(
                             habit: habit,
                             isCompleted: false,
-                            isSelected: selectedHabit?.id == habit.id
+                            isSelected: selectedHabit?.id == habit.id,
+                            onToggle: { viewModel.toggleHabitCompletion(habit) }
                         )
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -51,17 +40,18 @@ struct MyHabitsSection: View {
                     }
                 }
                 
-                if !completedHabits.isEmpty {
+                if !viewModel.completedHabits.isEmpty {
                     Text("Completed Today")
                         .font(.system(size: 16, weight: .semibold))
                         .padding(.horizontal, 4)
                         .padding(.top, 8)
                     
-                    ForEach(completedHabits) { habit in
+                    ForEach(viewModel.completedHabits) { habit in
                         HabitCardView(
                             habit: habit,
                             isCompleted: true,
-                            isSelected: selectedHabit?.id == habit.id
+                            isSelected: selectedHabit?.id == habit.id,
+                            onToggle: { viewModel.toggleHabitCompletion(habit) }
                         )
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {

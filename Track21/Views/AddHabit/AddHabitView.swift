@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct AddHabitView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Bindable var viewModel: HabitViewModel
     @Environment(\.dismiss) private var dismiss
     
     @State private var name = ""
@@ -87,23 +86,16 @@ struct AddHabitView: View {
     
     private func addHabit() {
         let habit = Habit(
-            id: UUID(),
             name: name,
             goal: goal,
             color: selectedColor,
-            startDate: startDate,
-            completedDates: [],
-            userId: nil,
-            syncStatus: .pending,
-            createdAt: Date(),
-            updatedAt: nil,
-            deletedAt: nil
+            startDate: startDate
         )
-        modelContext.insert(habit)
+        viewModel.addHabit(habit)
         dismiss()
     }
 }
 
 #Preview {
-    AddHabitView()
+    AddHabitView(viewModel: HabitViewModel())
 }

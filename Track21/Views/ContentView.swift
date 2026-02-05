@@ -6,18 +6,17 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
     @Bindable var authService: AuthService
-    @State private var viewModel = HabitViewModel()
+    @Bindable var viewModel: HabitViewModel
     @State private var selectedTab = 0
     @State private var showingAddHabit = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                HomeView()
+                HomeView(viewModel: viewModel)
                     .tag(0)
                 
                 StatsView()
@@ -28,7 +27,7 @@ struct ContentView: View {
         }
         .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView()
+            AddHabitView(viewModel: viewModel)
         }
         .task {
             // Auto-sync when app opens

@@ -147,9 +147,9 @@ class SyncService {
     }
 }
 
-// MARK: - DTO for Supabase
+// MARK: - DTO for Supabase (used for network serialization)
 
-struct HabitDTO: Codable {
+private struct HabitDTO: Codable {
     let id: UUID
     let name: String
     let goal: String

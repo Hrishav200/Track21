@@ -8,16 +8,15 @@
 import SwiftUI
 
 struct HabitCardView: View {
-    @Bindable var habit: Habit
+    let habit: Habit
     let isCompleted: Bool
     var isSelected: Bool = false
+    var onToggle: () -> Void = {}
     
     var body: some View {
         HStack {
             // Completion toggle button
-            Button(action: {
-                habit.toggleCompletion(for: Date())
-            }) {
+            Button(action: onToggle) {
                 Circle()
                     .fill(isCompleted ? Color(hex: "5DD167") : Color.gray.opacity(0.2))
                     .frame(width: 28, height: 28)

@@ -6,25 +6,23 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var habits: [Habit]
+    @Bindable var viewModel: HabitViewModel
     @State private var selectedHabit: Habit?
     @State private var showingAddHabit = false
     
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                HeaderView(viewModel: HabitViewModel())
+                HeaderView(viewModel: viewModel)
                 
                 VStack(spacing: 16) {
                     DayProgressCard(habit: selectedHabit)
                     
-                    TodayProgressView(habits: habits)
+                    TodayProgressView(viewModel: viewModel)
                     
-                    MyHabitsSection(selectedHabit: $selectedHabit)
+                    MyHabitsSection(viewModel: viewModel, selectedHabit: $selectedHabit)
                     
                     // Add habit button
                     Button(action: { showingAddHabit = true }) {
@@ -48,12 +46,12 @@ struct HomeView: View {
         .background(Color(hex: "F5F5F5"))
         .edgesIgnoringSafeArea(.top)
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView()
+            AddHabitView(viewModel: viewModel)
         }
         .onAppear {
             // Select first habit by default if none selected
-            if selectedHabit == nil && !habits.isEmpty {
-                selectedHabit = habits.first
+            if selectedHabit == nil && !viewModel.habits.isEmpty {
+                selectedHabit = viewModel.habits.first
             }
         }
     }
