@@ -8,31 +8,46 @@
 import SwiftUI
 
 struct DayProgressCard: View {
-    var viewModel: HabitViewModel
+    let habit: Habit?
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter
+    }
+    
+    private var todayFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM, yyyy"
+        return formatter
+    }
     
     var body: some View {
         VStack(spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let firstHabit = viewModel.habits.first {
-                        Text("Day \(firstHabit.currentDay) of 21")
+                    if let habit = habit {
+                        Text("Day \(habit.currentDay) of 21")
                             .font(.system(size: 20, weight: .bold))
-                        Text("Start Date: \(firstHabit.startDate, style: .date) | End Date: \(firstHabit.endDate, style: .date)")
+                        Text("Start: \(dateFormatter.string(from: habit.startDate)) | End: \(dateFormatter.string(from: habit.endDate))")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     } else {
-                        Text("No habits yet")
+                        Text("Select a habit")
                             .font(.system(size: 20, weight: .bold))
+                        Text("Tap a habit below to see its progress")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                     }
                 }
                 
                 Spacer()
                 
-                Text(Date(), style: .date)
+                Text(todayFormatter.string(from: Date()))
                     .font(.system(size: 14, weight: .medium))
             }
             
-            WeeklyCalendarView(viewModel: viewModel)
+            WeeklyCalendarView(habit: habit)
         }
         .padding()
         .background(Color.white)
@@ -40,4 +55,8 @@ struct DayProgressCard: View {
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         .offset(y: -50)
     }
+}
+
+#Preview {
+    DayProgressCard(habit: nil)
 }

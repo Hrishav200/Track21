@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
-internal import Auth
-
+import SwiftData
 
 struct HomeView: View {
-    var viewModel: HabitViewModel
-    var authService: AuthService
+    @Environment(\.modelContext) private var modelContext
+    @Query private var habits: [Habit]
+    @State private var selectedHabit: Habit?
+    @State private var showingAddHabit = false
     
     var body: some View {
         ScrollView {
@@ -19,11 +20,26 @@ struct HomeView: View {
                 HeaderView(viewModel: viewModel)
                 
                 VStack(spacing: 16) {
-                    DayProgressCard(viewModel: viewModel)
+                    DayProgressCard(habit: selectedHabit)
                     
-                    TodayProgressView(viewModel: viewModel)
+                    TodayProgressView(habits: habits)
                     
-                    MyHabitsSection(viewModel: viewModel)
+                    MyHabitsSection(selectedHabit: $selectedHabit)
+                    
+                    // Add habit button
+                    Button(action: { showingAddHabit = true }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add New Habit")
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color(hex: "5DD167"))
+                        .cornerRadius(12)
+                    }
+                    .padding(.top, 8)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 100)
@@ -31,36 +47,13 @@ struct HomeView: View {
         }
         .background(Color(hex: "F5F5F5"))
         .edgesIgnoringSafeArea(.top)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 12) {
-                    // Sync button
-                    Button(action: {
-                        Task {
-                            if let userId = authService.currentUser?.id {
-                                await viewModel.syncWithCloud(userId: userId)
-                            }
-                        }
-                    }) {
-                        if viewModel.isSyncing {
-                            ProgressView()
-                                .tint(Color(hex: "5DD167"))
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(Color(hex: "5DD167"))
-                        }
-                    }
-                    
-                    // Sign out button
-                    Button(action: {
-                        Task {
-                            try? await authService.signOut()
-                        }
-                    }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .foregroundColor(.red)
-                    }
-                }
+        .sheet(isPresented: $showingAddHabit) {
+            AddHabitView()
+        }
+        .onAppear {
+            // Select first habit by default if none selected
+            if selectedHabit == nil && !habits.isEmpty {
+                selectedHabit = habits.first
             }
         }
     }

@@ -1,127 +1,105 @@
 //
-//  habit.swift
+//  Habit.swift
 //  Track21
 //
-//  Created by Hrishav Sunar on 28/1/2026.
+//  Created by GOLU on 5/2/2026.
 //
 
 import Foundation
-import SwiftUI
+import SwiftData
 
-struct Habit: Identifiable, Equatable, Codable {
-    let id: UUID
-    var userId: UUID?
+@Model
+final class Habit {
     var name: String
     var goal: String
-    var colorHex: String
-    var frequency: HabitFrequency
-    let startDate: Date
-    var reminderTime: Date?
-    var reminderEnabled: Bool
+    var color: String
+    var startDate: Date
     var completedDates: [Date]
-    var createdAt: Date?
-    var updatedAt: Date?
-    var deletedAt: Date?
-    var syncStatus: SyncStatus = .synced
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case name
-        case goal
-        case colorHex = "color_hex"
-        case frequency
-        case startDate = "start_date"
-        case reminderTime = "reminder_time"
-        case reminderEnabled = "reminder_enabled"
-        case completedDates = "completed_dates"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-        case deletedAt = "deleted_at"
-        case syncStatus = "sync_status"
-    }
-
-    init(
-        id: UUID = UUID(),
-        userId: UUID? = nil,
-        name: String,
-        goal: String = "",
-        colorHex: String = "5DD167",
-        frequency: HabitFrequency = .daily,
-        startDate: Date = Date(),
-        reminderTime: Date? = nil,
-        reminderEnabled: Bool = false,
-        completedDates: [Date] = [],
-        createdAt: Date? = nil,
-        updatedAt: Date? = nil,
-        deletedAt: Date? = nil,
-        syncStatus: SyncStatus = .synced
-    ) {
-        self.id = id
-        self.userId = userId
+    
+    init(name: String, goal: String, color: String, startDate: Date = Date()) {
         self.name = name
         self.goal = goal
-        self.colorHex = colorHex
-        self.frequency = frequency
+        self.color = color
         self.startDate = startDate
-        self.reminderTime = reminderTime
-        self.reminderEnabled = reminderEnabled
-        self.completedDates = completedDates
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-        self.deletedAt = deletedAt
-        self.syncStatus = syncStatus
+        self.completedDates = []
     }
-
-    var color: Color {
-        Color(hex: colorHex)
-    }
-
-    var daysCompleted: Int {
-        completedDates.count
-    }
-
-    var currentDay: Int {
-        let calendar = Calendar.current
-        let days = calendar.dateComponents([.day], from: startDate, to: Date()).day ?? 0
-        return min(days + 1, 21)
-    }
-
+    
+    // MARK: - Computed Properties
+    
     var endDate: Date {
         Calendar.current.date(byAdding: .day, value: 20, to: startDate) ?? startDate
     }
-
-    func isCompletedToday() -> Bool {
+    
+    var currentDay: Int {
         let calendar = Calendar.current
-        return completedDates.contains { calendar.isDateInToday($0) }
+        let start = calendar.startOfDay(for: startDate)
+        let today = calendar.startOfDay(for: Date())
+        let components = calendar.dateComponents([.day], from: start, to: today)
+        let dayNumber = (components.day ?? 0) + 1
+        return min(max(dayNumber, 1), 21)
     }
-
+    
+    var isActive: Bool {
+        let today = Calendar.current.startOfDay(for: Date())
+        let end = Calendar.current.startOfDay(for: endDate)
+        return today <= end
+    }
+    
+    // MARK: - Methods
+    
     func isCompleted(on date: Date) -> Bool {
         let calendar = Calendar.current
-        return completedDates.contains { calendar.isDate($0, inSameDayAs: date) }
+        let targetDay = calendar.startOfDay(for: date)
+        return completedDates.contains { calendar.startOfDay(for: $0) == targetDay }
     }
-
-    mutating func toggleCompletion(for date: Date = Date()) {
+    
+    func toggleCompletion(for date: Date) {
         let calendar = Calendar.current
-        if let index = completedDates.firstIndex(where: { calendar.isDate($0, inSameDayAs: date) }) {
+        let targetDay = calendar.startOfDay(for: date)
+        
+        if let index = completedDates.firstIndex(where: { calendar.startOfDay(for: $0) == targetDay }) {
             completedDates.remove(at: index)
         } else {
-            completedDates.append(date)
+            completedDates.append(targetDay)
         }
-        syncStatus = .pending
-        updatedAt = Date()
+    }
+    
+    /// Returns the status of a date for this habit
+    /// - green: completed
+    /// - amber: missed (past date, not completed, within habit period)
+    /// - empty: future or outside habit period
+    func dateStatus(for date: Date) -> HabitDateStatus {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+        let today = calendar.startOfDay(for: Date())
+        
+        // Outside habit period
+        if targetDay < start || targetDay > end {
+            return .outside
+        }
+        
+        // Completed
+        if isCompleted(on: date) {
+            return .completed
+        }
+        
+        // Future (not yet reached)
+        if targetDay > today {
+            return .future
+        }
+        
+        // Past and not completed = missed
+        return .missed
     }
 }
 
-enum SyncStatus: String, Codable {
-    case synced
-    case pending
-    case failed
-}
+// MARK: - Date Status Enum
 
-enum HabitFrequency: String, Codable, CaseIterable {
-    case daily = "Daily"
-    case weekly = "Weekly"
-    case twentyOneDays = "21 days"
-    case custom = "Custom"
+enum HabitDateStatus {
+    case completed  // Green - tracked and completed
+    case missed     // Amber - day passed, not tracked
+    case future     // Empty - not yet reached
+    case outside    // Outside the 21-day period
 }

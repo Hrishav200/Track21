@@ -9,7 +9,6 @@ import SwiftUI
 
 @main
 struct Track21App: App {
-    @State private var authService = AuthService()
     
     var body: some Scene {
         WindowGroup {
@@ -19,5 +18,6 @@ struct Track21App: App {
                 LoginView(authService: authService)
             }
         }
+        .modelContainer(for: Habit.self)
     }
 }
