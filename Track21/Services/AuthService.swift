@@ -53,7 +53,8 @@ class AuthService {
                 let isAvailable = try await profileService.isUsernameAvailable(username)
                 guard isAvailable else {
                     errorMessage = "Username is already taken"
-                    throw ProfileError.usernameTaken
+                    isLoading = false
+                    throw NSError(domain: "Track21", code: 409, userInfo: [NSLocalizedDescriptionKey: "Username is already taken"])
                 }
                 
                 // Create profile
