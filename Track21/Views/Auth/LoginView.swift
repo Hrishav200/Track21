@@ -11,6 +11,7 @@ struct LoginView: View {
     @Bindable var authService: AuthService
     @State private var email = ""
     @State private var password = ""
+    @State private var username = ""
     @State private var isSignUp = false
     @State private var showingResetPassword = false
     @State private var resetEmail = ""
@@ -47,6 +48,12 @@ struct LoginView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                         
+                        if isSignUp {
+                            TextField("Username", text: $username)
+                                .textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never)
+                        }
+                        
                         SecureField("Password", text: $password)
                             .textFieldStyle(.roundedBorder)
                         
@@ -58,7 +65,7 @@ struct LoginView: View {
                         
                         Button(action: {
                             Task {
-                                try? await (isSignUp ? authService.signUp(email: email, password: password) : authService.signIn(email: email, password: password))
+                                try? await (isSignUp ? authService.signUp(email: email, password: password, username: username) : authService.signIn(email: email, password: password))
                             }
                         }) {
                             if authService.isLoading {
@@ -74,7 +81,7 @@ struct LoginView: View {
                         .background(Color(hex: "5DD167"))
                         .foregroundColor(.white)
                         .cornerRadius(12)
-                        .disabled(authService.isLoading || email.isEmpty || password.isEmpty)
+                        .disabled(authService.isLoading || email.isEmpty || password.isEmpty || (isSignUp && username.isEmpty))
                         
                         // Forgot password (only show on sign in)
                         if !isSignUp {
@@ -88,7 +95,10 @@ struct LoginView: View {
                             }
                         }
                         
-                        Button(action: { isSignUp.toggle() }) {
+                        Button(action: {
+                            isSignUp.toggle()
+                            username = "" // Clear username when switching modes
+                        }) {
                             Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
                                 .font(.system(size: 14))
                                 .foregroundColor(Color(hex: "5DD167"))

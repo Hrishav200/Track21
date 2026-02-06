@@ -33,16 +33,36 @@ class AuthService {
         }
     }
     
-    func signUp(email: String, password: String) async throws {
+    func signUp(email: String, password: String, username: String) async throws {
         isLoading = true
         errorMessage = nil
         
         do {
+            // First, sign up with Supabase Auth
             let response = try await supabase.auth.signUp(
                 email: email,
                 password: password
             )
             currentUser = response.user
+            
+            // Then, create the user profile with username
+            if let userId = response.user?.id {
+                let profileService = ProfileService()
+                
+                // Check if username is available
+                let isAvailable = try await profileService.isUsernameAvailable(username)
+                guard isAvailable else {
+                    errorMessage = "Username is already taken"
+                    throw ProfileError.usernameTaken
+                }
+                
+                // Create profile
+                _ = try await profileService.createProfile(
+                    userId: userId,
+                    username: username
+                )
+            }
+            
             isLoading = false
         } catch {
             isLoading = false
