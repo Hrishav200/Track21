@@ -47,22 +47,21 @@ class AuthService {
             
             // Then, create the user profile with username
             let userId = response.user.id
-                let profileService = ProfileService()
-                
-                // Check if username is available
-                let isAvailable = try await profileService.isUsernameAvailable(username)
-                guard isAvailable else {
-                    errorMessage = "Username is already taken"
-                    isLoading = false
-                    throw NSError(domain: "Track21", code: 409, userInfo: [NSLocalizedDescriptionKey: "Username is already taken"])
-                }
-                
-                // Create profile
-                _ = try await profileService.createProfile(
-                    userId: userId,
-                    username: username
-                )
+            let profileService = ProfileService()
+            
+            // Check if username is available
+            let isAvailable = try await profileService.isUsernameAvailable(username)
+            guard isAvailable else {
+                errorMessage = "Username is already taken"
+                isLoading = false
+                throw NSError(domain: "Track21", code: 409, userInfo: [NSLocalizedDescriptionKey: "Username is already taken"])
             }
+            
+            // Create profile
+            _ = try await profileService.createProfile(
+                userId: userId,
+                username: username
+            )
             
             isLoading = false
         } catch {
