@@ -46,7 +46,7 @@ class AuthService {
             currentUser = response.user
             
             // Then, create the user profile with username
-            if let userId = response.user?.id {
+            let userId = response.user.id
                 let profileService = ProfileService()
                 
                 // Check if username is available
