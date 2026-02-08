@@ -1,5 +1,9 @@
-// Track 21 - Password Reset Implementation
-// Complete solution for Supabase password reset flow
+//
+//  PasswordResetView.swift
+//  Track21
+//
+//  Created by GOLU on 8/2/2026.
+//
 
 import SwiftUI
 import Supabase
@@ -88,7 +92,6 @@ struct PasswordResetView: View {
             .alert("Success", isPresented: $viewModel.showSuccess) {
                 Button("OK") {
                     dismiss()
-                    // Navigate to login or home
                 }
             } message: {
                 Text("Your password has been reset successfully!")
@@ -106,6 +109,8 @@ class PasswordResetViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showSuccess = false
     
+    private let supabase = SupabaseConfig.client
+    
     var isFormValid: Bool {
         !password.isEmpty &&
         password.count >= 8 &&
@@ -122,8 +127,7 @@ class PasswordResetViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // Update password using Supabase
-            try await SupabaseManager.shared.client.auth.updateUser(
+            try await supabase.auth.updateUser(
                 attributes: UserAttributes(password: password)
             )
             
@@ -212,82 +216,3 @@ struct RoundedTextFieldStyle: TextFieldStyle {
             .cornerRadius(12)
     }
 }
-
-// MARK: - Deep Link Handler
-// Add this to your App struct or SceneDelegate
-
-class DeepLinkHandler: ObservableObject {
-    @Published var showPasswordReset = false
-    
-    func handleURL(_ url: URL) {
-        guard url.scheme == "track21" else { return }
-        
-        if url.host == "reset-password" {
-            showPasswordReset = true
-        }
-    }
-}
-
-// MARK: - App Integration Example
-/*
-@main
-struct Track21App: App {
-    @StateObject private var deepLinkHandler = DeepLinkHandler()
-    
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .onOpenURL { url in
-                    deepLinkHandler.handleURL(url)
-                }
-                .sheet(isPresented: $deepLinkHandler.showPasswordReset) {
-                    PasswordResetView()
-                }
-        }
-    }
-}
-*/
-
-// MARK: - Supabase Manager (if you don't have one already)
-class SupabaseManager {
-    static let shared = SupabaseManager()
-    
-    let client: SupabaseClient
-    
-    private init() {
-        // Replace with your Supabase URL and anon key
-        client = SupabaseClient(
-            supabaseURL: URL(string: "YOUR_SUPABASE_URL")!,
-            supabaseKey: "YOUR_SUPABASE_ANON_KEY"
-        )
-    }
-}
-
-// MARK: - Info.plist Configuration
-/*
-Add this to your Info.plist:
-
-<key>CFBundleURLTypes</key>
-<array>
-    <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-            <string>track21</string>
-        </array>
-        <key>CFBundleURLName</key>
-        <string>com.yourcompany.track21</string>
-    </dict>
-</array>
-*/
-
-// MARK: - Supabase Dashboard Configuration
-/*
-Go to: Dashboard → Authentication → URL Configuration
-
-Redirect URLs:
-- Development: track21://reset-password
-- Production: https://yourapp.com/reset-password (if using universal links)
-
-Site URL:
-- Your app's main URL or track21://
-*/
