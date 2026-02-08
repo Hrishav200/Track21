@@ -128,8 +128,8 @@ class PasswordResetViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            try await supabase.auth.updateUser(
-                attributes: UserAttributes(password: password)
+            try await supabase.auth.update(
+                user: UserAttributes(password: password)
             )
             
             isLoading = false
