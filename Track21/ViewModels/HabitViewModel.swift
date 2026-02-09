@@ -19,6 +19,7 @@ class HabitViewModel {
     
     var isSyncing: Bool { syncService.isSyncing }
     var lastSyncDate: Date? { syncService.lastSyncDate }
+    var syncError: String? { syncService.syncError }
     
     init() {
         loadHabits()
@@ -92,7 +93,7 @@ class HabitViewModel {
             }
             saveHabits()
         } catch {
-            print("Sync error: \(error)")
+            print("[HabitViewModel] Sync failed for user \(userId): \(error.localizedDescription)")
         }
     }
     
