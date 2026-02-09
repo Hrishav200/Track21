@@ -46,6 +46,17 @@ struct MyHabitsSection: View {
                                 }
                             }
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    Task {
+                                        await viewModel.deleteHabit(habit)
+                                    }
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 
@@ -80,6 +91,17 @@ struct MyHabitsSection: View {
                                 } else {
                                     selectedHabit = habit
                                 }
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    Task {
+                                        await viewModel.deleteHabit(habit)
+                                    }
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
