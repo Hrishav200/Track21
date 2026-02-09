@@ -43,8 +43,18 @@ class AuthService {
                 email: email,
                 password: password
             )
+
+            // Check if this is a genuinely new user
+            // Supabase returns an empty identities array if the email already exists
+            // (to prevent email enumeration attacks)
+            guard let identities = response.user.identities, !identities.isEmpty else {
+                isLoading = false
+                errorMessage = "An account with this email already exists. Please sign in."
+                throw NSError(domain: "Track21", code: 409, userInfo: [NSLocalizedDescriptionKey: "An account with this email already exists. Please sign in."])
+            }
+
             currentUser = response.user
-            
+
             // Then, create the user profile with username
             let userId = response.user.id
             let profileService = ProfileService()
