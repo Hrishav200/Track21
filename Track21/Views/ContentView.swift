@@ -20,7 +20,7 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                HomeView(viewModel: viewModel, onProfileTap: { showingProfile = true })
+                HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
                     .tag(0)
                 
                 StatsView()
@@ -31,7 +31,7 @@ struct ContentView: View {
         }
         .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(viewModel: viewModel)
+            AddHabitView(viewModel: viewModel, authService: authService)
         }
         .sheet(isPresented: $showingProfile) {
             ProfileView(

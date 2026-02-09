@@ -9,6 +9,7 @@ import SwiftUI
 
 struct AddHabitView: View {
     @Bindable var viewModel: HabitViewModel
+    var authService: AuthService
     @Environment(\.dismiss) private var dismiss
     
     @State private var name = ""
@@ -89,13 +90,23 @@ struct AddHabitView: View {
             name: name,
             goal: goal,
             color: selectedColor,
-            startDate: startDate
+            startDate: startDate,
+            userId: authService.currentUser?.id,
+            syncStatus: .pending
         )
         viewModel.addHabit(habit)
+        
+        // Trigger sync after adding
+        if let userId = authService.currentUser?.id {
+            Task {
+                await viewModel.syncWithCloud(userId: userId)
+            }
+        }
+        
         dismiss()
     }
 }
 
 #Preview {
-    AddHabitView(viewModel: HabitViewModel())
+    AddHabitView(viewModel: HabitViewModel(), authService: AuthService())
 }

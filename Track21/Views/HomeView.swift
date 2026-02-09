@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Bindable var viewModel: HabitViewModel
+    var authService: AuthService
     @State private var selectedHabit: Habit?
     @State private var showingAddHabit = false
     var onProfileTap: () -> Void = {}
@@ -47,7 +48,7 @@ struct HomeView: View {
         .background(Color(hex: "F5F5F5"))
         .edgesIgnoringSafeArea(.top)
         .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(viewModel: viewModel)
+            AddHabitView(viewModel: viewModel, authService: authService)
         }
         .onAppear {
             // Select first habit by default if none selected

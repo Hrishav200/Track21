@@ -65,6 +65,13 @@ class HabitViewModel {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
             habits[index].toggleCompletion()
             saveHabits()
+            
+            // Trigger sync if user is logged in
+            if let userId = habits[index].userId {
+                Task {
+                    await syncWithCloud(userId: userId)
+                }
+            }
         }
     }
     
