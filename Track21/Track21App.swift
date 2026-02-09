@@ -48,7 +48,7 @@ struct Track21App: App {
                             await authService.checkSession()
                         }
                     } catch {
-                        print("Deep link auth error: \(error)")
+                        // Deep link auth error handled silently
                     }
                 }
             }

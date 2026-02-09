@@ -9,13 +9,15 @@ import SwiftUI
 struct StatsView: View {
     var body: some View {
         ZStack {
-            Color(hex: "F5F5F5")
+            AppTheme.background
                 .edgesIgnoringSafeArea(.all)
-            
+
             VStack {
                 Text("Stats")
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
                 Text("Coming soon...")
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
             }
         }

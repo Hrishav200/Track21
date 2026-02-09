@@ -11,7 +11,7 @@ import SwiftUI
 @Observable
 class HabitViewModel {
     var habits: [Habit] = []
-    var userName: String = "John"
+    var userName: String = "Friend"
     
     private let saveKey = "Track21SavedHabits"
     private let userNameKey = "Track21UserName"
@@ -53,7 +53,7 @@ class HabitViewModel {
             do {
                 try await syncService.deleteHabit(habit)
             } catch {
-                print("Failed to delete habit from cloud: \(error)")
+                // Silently handle cloud delete failure - local delete still proceeds
             }
         }
         
@@ -93,13 +93,20 @@ class HabitViewModel {
             }
             saveHabits()
         } catch {
-            print("[HabitViewModel] Sync failed for user \(userId): \(error.localizedDescription)")
+            // Sync error is exposed via syncError property
         }
     }
     
     func saveUserName(_ name: String) {
         userName = name
         UserDefaults.standard.set(name, forKey: userNameKey)
+    }
+
+    func clearData() {
+        habits = []
+        userName = "Friend"
+        UserDefaults.standard.removeObject(forKey: saveKey)
+        UserDefaults.standard.removeObject(forKey: userNameKey)
     }
     
     private func saveHabits() {

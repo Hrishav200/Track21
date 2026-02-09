@@ -21,48 +21,50 @@ struct LoginView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(hex: "F5F5F5").ignoresSafeArea()
-                
+                AppTheme.background.ignoresSafeArea()
+
                 VStack(spacing: 24) {
                     // Logo
                     VStack(spacing: 8) {
                         Image(systemName: "chart.line.uptrend.xyaxis")
                             .font(.system(size: 60))
-                            .foregroundColor(Color(hex: "5DD167"))
-                        
+                            .foregroundColor(AppTheme.primary)
+                            .accessibilityHidden(true)
+
                         Text("Track21")
-                            .font(.system(size: 32, weight: .bold))
-                        
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+
                         Text("Build habits in 21 days")
-                            .font(.system(size: 16))
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 60)
-                    
+
                     Spacer()
-                    
+
                     // Form
                     VStack(spacing: 16) {
                         TextField("Email", text: $email)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                        
+
                         if isSignUp {
                             TextField("Username", text: $username)
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                         }
-                        
+
                         SecureField("Password", text: $password)
                             .textFieldStyle(.roundedBorder)
-                        
+
                         if let error = authService.errorMessage {
                             Text(error)
                                 .font(.caption)
                                 .foregroundColor(.red)
                         }
-                        
+
                         Button(action: {
                             Task {
                                 try? await (isSignUp ? authService.signUp(email: email, password: password, username: username) : authService.signIn(email: email, password: password))
@@ -73,16 +75,16 @@ struct LoginView: View {
                                     .tint(.white)
                             } else {
                                 Text(isSignUp ? "Sign Up" : "Sign In")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.headline)
                             }
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(hex: "5DD167"))
+                        .background(AppTheme.primary)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                         .disabled(authService.isLoading || email.isEmpty || password.isEmpty || (isSignUp && username.isEmpty))
-                        
+
                         // Forgot password (only show on sign in)
                         if !isSignUp {
                             Button(action: {
@@ -90,22 +92,22 @@ struct LoginView: View {
                                 showingResetPassword = true
                             }) {
                                 Text("Forgot Password?")
-                                    .font(.system(size: 14))
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
                         }
-                        
+
                         Button(action: {
                             isSignUp.toggle()
-                            username = "" // Clear username when switching modes
+                            username = ""
                         }) {
                             Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "5DD167"))
+                                .font(.subheadline)
+                                .foregroundColor(AppTheme.primary)
                         }
                     }
                     .padding(.horizontal, 24)
-                    
+
                     Spacer()
                 }
             }
@@ -134,56 +136,58 @@ struct ResetPasswordSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(hex: "F5F5F5").ignoresSafeArea()
-                
+                AppTheme.background.ignoresSafeArea()
+
                 VStack(spacing: 24) {
                     VStack(spacing: 8) {
                         Image(systemName: "envelope.badge")
                             .font(.system(size: 50))
-                            .foregroundColor(Color(hex: "5DD167"))
-                        
+                            .foregroundColor(AppTheme.primary)
+                            .accessibilityHidden(true)
+
                         Text("Reset Password")
-                            .font(.system(size: 24, weight: .bold))
-                        
+                            .font(.title2)
+                            .fontWeight(.bold)
+
                         Text("Enter your email and we'll send you a link to reset your password")
-                            .font(.system(size: 14))
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
                     .padding(.top, 40)
-                    
+
                     VStack(spacing: 16) {
                         TextField("Email", text: $email)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                        
+
                         if let msg = message {
                             Text(msg)
-                                .font(.system(size: 14))
-                                .foregroundColor(msg.contains("sent") ? Color(hex: "5DD167") : .red)
+                                .font(.subheadline)
+                                .foregroundColor(msg.contains("sent") ? AppTheme.primary : .red)
                                 .multilineTextAlignment(.center)
                         }
-                        
+
                         Button(action: resetPassword) {
                             if isResetting {
                                 ProgressView()
                                     .tint(.white)
                             } else {
                                 Text("Send Reset Link")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.headline)
                             }
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(hex: "5DD167"))
+                        .background(AppTheme.primary)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                         .disabled(isResetting || email.isEmpty)
                     }
                     .padding(.horizontal, 24)
-                    
+
                     Spacer()
                 }
             }

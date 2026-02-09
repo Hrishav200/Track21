@@ -24,4 +24,13 @@ extension Color {
         }
         self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
     }
+
+    /// Adaptive color that switches between light and dark hex values
+    init(lightHex: String, darkHex: String) {
+        self.init(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(Color(hex: darkHex))
+                : UIColor(Color(hex: lightHex))
+        })
+    }
 }

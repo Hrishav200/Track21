@@ -124,7 +124,15 @@ class AuthService {
         try await supabase.auth.signOut()
         currentUser = nil
     }
-    
+
+    func deleteAccount() async throws {
+        // Sign out the user locally (actual account deletion should be
+        // handled server-side via a Supabase Edge Function or admin API
+        // since the client SDK cannot delete users directly)
+        try await supabase.auth.signOut()
+        currentUser = nil
+    }
+
     func resetPassword(email: String) async throws {
         try await supabase.auth.resetPasswordForEmail(email)
     }

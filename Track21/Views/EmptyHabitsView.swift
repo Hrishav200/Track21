@@ -12,13 +12,14 @@ struct EmptyHabitsView: View {
             Image(systemName: "list.bullet.clipboard")
                 .font(.system(size: 48))
                 .foregroundColor(.gray.opacity(0.5))
-            
+                .accessibilityHidden(true)
+
             Text("No habits yet")
-                .font(.system(size: 16, weight: .medium))
+                .font(.headline)
                 .foregroundColor(.secondary)
-            
+
             Text("Tap the + button to add your first habit")
-                .font(.system(size: 14))
+                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
