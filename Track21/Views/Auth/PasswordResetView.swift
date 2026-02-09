@@ -13,6 +13,7 @@ import Combine
 struct PasswordResetView: View {
     @StateObject private var viewModel = PasswordResetViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Binding var isPresented: Bool
     
     var body: some View {
         NavigationView {
@@ -88,10 +89,12 @@ struct PasswordResetView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(leading: Button("Cancel") {
+                isPresented = false
                 dismiss()
             })
             .alert("Success", isPresented: $viewModel.showSuccess) {
                 Button("OK") {
+                    isPresented = false
                     dismiss()
                 }
             } message: {

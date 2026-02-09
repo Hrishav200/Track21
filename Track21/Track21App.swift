@@ -14,11 +14,14 @@ struct Track21App: App {
     @State private var authService = AuthService()
     @State private var viewModel = HabitViewModel()
     @State private var profileService = ProfileService()
+    @State private var showPasswordReset = false
     
     var body: some Scene {
         WindowGroup {
             Group {
-                if authService.isAuthenticated {
+                if showPasswordReset {
+                    PasswordResetView(isPresented: $showPasswordReset)
+                } else if authService.isAuthenticated {
                     ContentView(
                         authService: authService,
                         viewModel: viewModel,
@@ -32,8 +35,18 @@ struct Track21App: App {
                 // Handle deep links for auth (password reset, magic links, etc.)
                 Task {
                     do {
-                        try await SupabaseConfig.client.auth.session(from: url)
-                        await authService.checkSession()
+                        // Check if this is a password reset link
+                        let urlString = url.absoluteString
+                        if urlString.contains("reset-password") || urlString.contains("type=recovery") {
+                            // Process the recovery session
+                            try await SupabaseConfig.client.auth.session(from: url)
+                            // Show password reset screen
+                            showPasswordReset = true
+                        } else {
+                            // Handle other auth links (magic links, etc.)
+                            try await SupabaseConfig.client.auth.session(from: url)
+                            await authService.checkSession()
+                        }
                     } catch {
                         print("Deep link auth error: \(error)")
                     }
