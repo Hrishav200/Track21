@@ -20,7 +20,7 @@ struct MyHabitsSection: View {
             if viewModel.habits.isEmpty {
                 EmptyHabitsView()
             } else {
-                habitsContent
+                habitsList
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
@@ -28,23 +28,34 @@ struct MyHabitsSection: View {
         .offset(y: -30)
     }
     
-    @ViewBuilder
-    private var habitsContent: some View {
-        // Incomplete habits section
-        if !viewModel.incompleteHabits.isEmpty {
-            ForEach(viewModel.incompleteHabits) { habit in
-                habitRow(for: habit, isCompleted: false)
+    private var habitsList: some View {
+        List {
+            // Incomplete habits section
+            if !viewModel.incompleteHabits.isEmpty {
+                ForEach(viewModel.incompleteHabits) { habit in
+                    habitRow(for: habit, isCompleted: false)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
             }
-        }
-        
-        // Completed habits section
-        if !viewModel.completedHabits.isEmpty {
-            completedSectionHeader
             
-            ForEach(viewModel.completedHabits) { habit in
-                habitRow(for: habit, isCompleted: true)
+            // Completed habits section
+            if !viewModel.completedHabits.isEmpty {
+                Section {
+                    ForEach(viewModel.completedHabits) { habit in
+                        habitRow(for: habit, isCompleted: true)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                } header: {
+                    completedSectionHeader
+                }
             }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
     
     private var completedSectionHeader: some View {
