@@ -99,18 +99,44 @@ class SyncService {
         let pendingHabits = habits.filter { $0.syncStatus == .pending }
 
         for habit in pendingHabits {
-            let dto = HabitDTO(from: habit, userId: userId)
+            // Get auth token for the request
+            let session = try await supabase.auth.session
+            let accessToken = session.accessToken
 
-            do {
-                // Upsert habit
-                try await supabase
-                    .from("habits")
-                    .upsert(dto)
-                    .execute()
-                print("[SyncService] Uploaded habit '\(habit.name)' (id: \(habit.id))")
-            } catch {
-                print("[SyncService] Failed to upload habit '\(habit.name)': \(error)")
-                throw error
+            let jsonBody: [String: Any] = [
+                "id": habit.id.uuidString,
+                "name": habit.name,
+                "goal": habit.goal,
+                "color": habit.color,
+                "color_hex": habit.color,
+                "frequency": "daily",
+                "start_date": habit.startDate.ISO8601Format(),
+                "user_id": userId.uuidString,
+                "created_at": habit.createdAt.ISO8601Format(),
+                "updated_at": Date().ISO8601Format(),
+            ]
+
+            let jsonData = try JSONSerialization.data(withJSONObject: jsonBody)
+            print("[SyncService] Raw JSON: \(String(data: jsonData, encoding: .utf8) ?? "nil")")
+
+            var request = URLRequest(url: URL(string: "\(SupabaseConfig.url.absoluteString)/rest/v1/habits")!)
+            request.httpMethod = "POST"
+            request.httpBody = jsonData
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
+            request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let httpResponse = response as? HTTPURLResponse
+            let statusCode = httpResponse?.statusCode ?? 0
+            let responseBody = String(data: data, encoding: .utf8) ?? "nil"
+
+            if statusCode >= 200 && statusCode < 300 {
+                print("[SyncService] Uploaded habit '\(habit.name)' (status: \(statusCode))")
+            } else {
+                print("[SyncService] Failed to upload habit '\(habit.name)' (status: \(statusCode)): \(responseBody)")
+                throw NSError(domain: "SyncService", code: statusCode, userInfo: [NSLocalizedDescriptionKey: responseBody])
             }
         }
     }
@@ -179,43 +205,43 @@ private struct HabitDTO: Codable {
     let id: UUID
     let name: String
     let goal: String
-    let color: String
+    let colorHex: String
     let startDate: Date
     let userId: UUID
     let createdAt: Date
     let updatedAt: Date?
     let deletedAt: Date?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case goal
-        case color
+        case colorHex = "color_hex"
         case startDate = "start_date"
         case userId = "user_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
     }
-    
+
     init(from habit: Habit, userId: UUID) {
         self.id = habit.id
         self.name = habit.name
         self.goal = habit.goal
-        self.color = habit.color
+        self.colorHex = habit.color
         self.startDate = habit.startDate
         self.userId = userId
         self.createdAt = habit.createdAt
         self.updatedAt = Date()
         self.deletedAt = habit.deletedAt
     }
-    
+
     func toHabit() -> Habit {
         Habit(
             id: id,
             name: name,
             goal: goal,
-            color: color,
+            color: colorHex,
             startDate: startDate,
             completedDates: [],
             userId: userId,
