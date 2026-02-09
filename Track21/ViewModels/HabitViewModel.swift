@@ -86,7 +86,7 @@ class HabitViewModel {
         do {
             let syncedHabits = try await syncService.syncHabits(habits: habits, userId: userId)
             habits = syncedHabits.map { habit in
-                var updated = habit
+                let updated = habit
                 updated.syncStatus = .synced
                 return updated
             }

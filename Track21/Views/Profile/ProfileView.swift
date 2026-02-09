@@ -224,7 +224,8 @@ struct ProfileView: View {
                 }
                 
                 // Update local viewModel
-                let displayName = fullName.isEmpty ? username : fullName
+                let displayName = fullName.isEmpty ? username : fullName.components(separatedBy: " ").first ?? ""
+                print("your displayu name is: \(displayName)")
                 viewModel.saveUserName(displayName)
                 
                 successMessage = "Profile updated!"
