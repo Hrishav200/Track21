@@ -20,7 +20,7 @@ struct MyHabitsSection: View {
             if viewModel.habits.isEmpty {
                 EmptyHabitsView()
             } else {
-                habitsList
+                habitsContent
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
@@ -28,34 +28,23 @@ struct MyHabitsSection: View {
         .offset(y: -30)
     }
     
-    private var habitsList: some View {
-        List {
-            // Incomplete habits section
-            if !viewModel.incompleteHabits.isEmpty {
-                ForEach(viewModel.incompleteHabits) { habit in
-                    habitRow(for: habit, isCompleted: false)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
-            }
-            
-            // Completed habits section
-            if !viewModel.completedHabits.isEmpty {
-                Section {
-                    ForEach(viewModel.completedHabits) { habit in
-                        habitRow(for: habit, isCompleted: true)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    }
-                } header: {
-                    completedSectionHeader
-                }
+    @ViewBuilder
+    private var habitsContent: some View {
+        // Incomplete habits section
+        if !viewModel.incompleteHabits.isEmpty {
+            ForEach(viewModel.incompleteHabits) { habit in
+                habitRow(for: habit, isCompleted: false)
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        
+        // Completed habits section
+        if !viewModel.completedHabits.isEmpty {
+            completedSectionHeader
+            
+            ForEach(viewModel.completedHabits) { habit in
+                habitRow(for: habit, isCompleted: true)
+            }
+        }
     }
     
     private var completedSectionHeader: some View {
@@ -83,8 +72,14 @@ struct MyHabitsSection: View {
         .onTapGesture {
             handleTap(for: habit)
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            deleteButton(for: habit)
+        .contextMenu {
+            Button(role: .destructive) {
+                Task {
+                    await viewModel.deleteHabit(habit)
+                }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
     
@@ -109,16 +104,6 @@ struct MyHabitsSection: View {
             } else {
                 selectedHabit = habit
             }
-        }
-    }
-    
-    private func deleteButton(for habit: Habit) -> some View {
-        Button(role: .destructive) {
-            Task {
-                await viewModel.deleteHabit(habit)
-            }
-        } label: {
-            Label("Delete", systemImage: "trash")
         }
     }
 }
