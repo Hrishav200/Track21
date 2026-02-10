@@ -128,7 +128,7 @@ struct ProfileView: View {
                         .padding(.top, 8)
 
                         // Privacy policy link
-                        Link(destination: URL(string: "https://yourbaecodes.com/track21/privacy")!) {
+                        Link(destination: URL(string: "https://hrishav200.github.io/Track21/privacy/")!) {
                             HStack {
                                 Image(systemName: "hand.raised")
                                 Text("Privacy Policy")
