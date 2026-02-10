@@ -126,9 +126,31 @@ class AuthService {
     }
 
     func deleteAccount() async throws {
+        // Get the current session token
+        let session = try await supabase.auth.session
+        let accessToken = session.accessToken
+
         // Call the server-side Edge Function to delete all user data
-        // (completed_dates, habits, profiles, and the auth user)
-        try await supabase.functions.invoke("delete-account")
+        let functionURL = SupabaseConfig.url
+            .appendingPathComponent("functions")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("delete-account")
+
+        var request = URLRequest(url: functionURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "Track21", code: statusCode,
+                          userInfo: [NSLocalizedDescriptionKey: "Account deletion failed (\(statusCode)): \(body)"])
+        }
 
         // Server-side deletion succeeded; clear local state
         currentUser = nil
