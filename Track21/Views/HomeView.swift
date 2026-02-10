@@ -32,20 +32,21 @@ struct HomeView: View {
                             Image(systemName: "plus.circle.fill")
                             Text("Add New Habit")
                         }
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color(hex: "5DD167"))
+                        .background(AppTheme.primary)
                         .cornerRadius(12)
                     }
+                    .accessibilityLabel("Add new habit")
                     .padding(.top, 8)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 100)
             }
         }
-        .background(Color(hex: "F5F5F5"))
+        .background(AppTheme.background)
         .edgesIgnoringSafeArea(.top)
         .sheet(isPresented: $showingAddHabit) {
             AddHabitView(viewModel: viewModel, authService: authService)

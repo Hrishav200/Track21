@@ -17,10 +17,7 @@ class SyncService {
     private let supabase = SupabaseConfig.client
     
     func syncHabits(habits: [Habit], userId: UUID) async throws -> [Habit] {
-        guard !isSyncing else {
-            print("[SyncService] Sync already in progress, skipping")
-            return habits
-        }
+        guard !isSyncing else { return habits }
 
         isSyncing = true
         syncError = nil
@@ -28,32 +25,23 @@ class SyncService {
         defer { isSyncing = false }
 
         do {
-            print("[SyncService] Starting sync for user: \(userId)")
-            print("[SyncService] Local habits count: \(habits.count)")
-
             // 1. Fetch remote habits
             let remoteHabits = try await fetchRemoteHabits(userId: userId)
-            print("[SyncService] Remote habits fetched: \(remoteHabits.count)")
 
             // 2. Merge local and remote habits
             let mergedHabits = mergeHabits(local: habits, remote: remoteHabits)
-            print("[SyncService] Merged habits count: \(mergedHabits.count)")
 
             // 3. Upload pending changes
-            let pendingCount = mergedHabits.filter { $0.syncStatus == .pending }.count
-            print("[SyncService] Uploading \(pendingCount) pending habits")
             try await uploadPendingChanges(habits: mergedHabits, userId: userId)
 
             // 4. Sync completed dates
             let habitsWithDates = try await syncCompletedDates(habits: mergedHabits)
 
             lastSyncDate = Date()
-            print("[SyncService] Sync completed successfully")
             return habitsWithDates
 
         } catch {
             syncError = error.localizedDescription
-            print("[SyncService] Sync FAILED: \(error)")
             throw error
         }
     }
@@ -117,9 +105,12 @@ class SyncService {
             ]
 
             let jsonData = try JSONSerialization.data(withJSONObject: jsonBody)
-            print("[SyncService] Raw JSON: \(String(data: jsonData, encoding: .utf8) ?? "nil")")
 
-            var request = URLRequest(url: URL(string: "\(SupabaseConfig.url.absoluteString)/rest/v1/habits")!)
+            guard let requestURL = URL(string: "\(SupabaseConfig.url.absoluteString)/rest/v1/habits") else {
+                throw NSError(domain: "SyncService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid Supabase URL"])
+            }
+
+            var request = URLRequest(url: requestURL)
             request.httpMethod = "POST"
             request.httpBody = jsonData
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -130,12 +121,9 @@ class SyncService {
             let (data, response) = try await URLSession.shared.data(for: request)
             let httpResponse = response as? HTTPURLResponse
             let statusCode = httpResponse?.statusCode ?? 0
-            let responseBody = String(data: data, encoding: .utf8) ?? "nil"
 
-            if statusCode >= 200 && statusCode < 300 {
-                print("[SyncService] Uploaded habit '\(habit.name)' (status: \(statusCode))")
-            } else {
-                print("[SyncService] Failed to upload habit '\(habit.name)' (status: \(statusCode)): \(responseBody)")
+            if !(200..<300).contains(statusCode) {
+                let responseBody = String(data: data, encoding: .utf8) ?? "Unknown error"
                 throw NSError(domain: "SyncService", code: statusCode, userInfo: [NSLocalizedDescriptionKey: responseBody])
             }
         }
@@ -178,12 +166,12 @@ class SyncService {
                                 .upsert(newDate)
                                 .execute()
                         } catch {
-                            print("[SyncService] Failed to upsert completed date for habit '\(habit.name)': \(error)")
+                            // Continue syncing other dates even if one fails
                         }
                     }
                 }
             } catch {
-                print("[SyncService] Failed to sync completed dates for habit '\(habit.name)': \(error)")
+                // Continue syncing other habits even if one fails
             }
         }
 

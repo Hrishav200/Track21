@@ -13,41 +13,44 @@ struct ProfileView: View {
     @Bindable var profileService: ProfileService
     @Bindable var viewModel: HabitViewModel
     @Environment(\.dismiss) private var dismiss
-    
+
     @State private var username: String = ""
     @State private var fullName: String = ""
     @State private var isEditing = false
     @State private var isSaving = false
     @State private var showingSignOutAlert = false
+    @State private var showingDeleteAlert = false
+    @State private var isDeletingAccount = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
-    
+
     var body: some View {
         NavigationView {
             ZStack {
-                Color(hex: "F5F5F5").ignoresSafeArea()
-                
+                AppTheme.background.ignoresSafeArea()
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // Profile avatar
                         VStack(spacing: 12) {
                             Circle()
-                                .fill(Color(hex: "5DD167").opacity(0.2))
+                                .fill(AppTheme.primary.opacity(0.2))
                                 .frame(width: 100, height: 100)
                                 .overlay(
                                     Text(initials)
-                                        .font(.system(size: 36, weight: .bold))
-                                        .foregroundColor(Color(hex: "5DD167"))
+                                        .font(.largeTitle.weight(.bold))
+                                        .foregroundColor(AppTheme.primary)
                                 )
-                            
+                                .accessibilityLabel("Profile avatar: \(initials)")
+
                             if let email = authService.currentUser?.email {
                                 Text(email)
-                                    .font(.system(size: 14))
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
                         }
                         .padding(.top, 20)
-                        
+
                         // Profile form
                         VStack(spacing: 16) {
                             ProfileTextField(
@@ -56,7 +59,7 @@ struct ProfileView: View {
                                 placeholder: "Enter username",
                                 isEditing: isEditing
                             )
-                            
+
                             ProfileTextField(
                                 title: "Full Name",
                                 text: $fullName,
@@ -65,22 +68,22 @@ struct ProfileView: View {
                             )
                         }
                         .padding(.horizontal, 24)
-                        
+
                         // Messages
                         if let error = errorMessage {
                             Text(error)
-                                .font(.system(size: 14))
+                                .font(.subheadline)
                                 .foregroundColor(.red)
                                 .padding(.horizontal, 24)
                         }
-                        
+
                         if let success = successMessage {
                             Text(success)
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: "5DD167"))
+                                .font(.subheadline)
+                                .foregroundColor(AppTheme.primary)
                                 .padding(.horizontal, 24)
                         }
-                        
+
                         // Action buttons
                         VStack(spacing: 12) {
                             if isEditing {
@@ -90,20 +93,20 @@ struct ProfileView: View {
                                             .tint(.white)
                                     } else {
                                         Text("Save Changes")
-                                            .font(.system(size: 16, weight: .semibold))
+                                            .font(.body.weight(.semibold))
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "5DD167"))
+                                .background(AppTheme.primary)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                                 .disabled(isSaving || username.isEmpty)
-                                
+
                                 Button("Cancel") {
                                     cancelEditing()
                                 }
-                                .font(.system(size: 16, weight: .medium))
+                                .font(.body.weight(.medium))
                                 .foregroundColor(.secondary)
                             } else {
                                 Button(action: { isEditing = true }) {
@@ -111,30 +114,55 @@ struct ProfileView: View {
                                         Image(systemName: "pencil")
                                         Text("Edit Profile")
                                     }
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.body.weight(.semibold))
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "5DD167"))
+                                .background(AppTheme.primary)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
+                                .accessibilityLabel("Edit Profile")
                             }
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
-                        
+
+                        // Privacy policy link
+                        Link(destination: URL(string: "https://yourbaecodes.com/track21/privacy")!) {
+                            HStack {
+                                Image(systemName: "hand.raised")
+                                Text("Privacy Policy")
+                            }
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
+
                         Spacer(minLength: 40)
-                        
+
                         // Sign out button
                         Button(action: { showingSignOutAlert = true }) {
                             HStack {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
                                 Text("Sign Out")
                             }
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.body.weight(.medium))
                             .foregroundColor(.red)
                         }
+                        .accessibilityLabel("Sign Out")
+
+                        // Delete account button
+                        Button(action: { showingDeleteAlert = true }) {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Delete Account")
+                            }
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.red.opacity(0.8))
+                        }
+                        .padding(.top, 8)
                         .padding(.bottom, 40)
+                        .accessibilityLabel("Delete Account")
                     }
                 }
             }
@@ -154,6 +182,14 @@ struct ProfileView: View {
                 }
             } message: {
                 Text("Are you sure you want to sign out?")
+            }
+            .alert("Delete Account", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    deleteAccount()
+                }
+            } message: {
+                Text("This will permanently delete your account and all your data. This action cannot be undone.")
             }
             .task {
                 await loadProfile()
@@ -225,7 +261,6 @@ struct ProfileView: View {
                 
                 // Update local viewModel
                 let displayName = fullName.isEmpty ? username : fullName.components(separatedBy: " ").first ?? ""
-                print("your displayu name is: \(displayName)")
                 viewModel.saveUserName(displayName)
                 
                 successMessage = "Profile updated!"
@@ -255,6 +290,20 @@ struct ProfileView: View {
             dismiss()
         }
     }
+
+    private func deleteAccount() {
+        isDeletingAccount = true
+        Task {
+            do {
+                viewModel.clearData()
+                try await authService.deleteAccount()
+                dismiss()
+            } catch {
+                errorMessage = "Failed to delete account: \(error.localizedDescription)"
+                isDeletingAccount = false
+            }
+        }
+    }
 }
 
 // MARK: - Profile Text Field
@@ -264,24 +313,24 @@ struct ProfileTextField: View {
     @Binding var text: String
     let placeholder: String
     let isEditing: Bool
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 14, weight: .medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundColor(.secondary)
-            
+
             if isEditing {
                 TextField(placeholder, text: $text)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
             } else {
                 Text(text.isEmpty ? "Not set" : text)
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundColor(text.isEmpty ? .secondary : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(Color.white)
+                    .background(AppTheme.cardBackground)
                     .cornerRadius(8)
             }
         }

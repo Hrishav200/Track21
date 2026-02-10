@@ -14,7 +14,8 @@ struct MyHabitsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("My Habits")
-                .font(.system(size: 18, weight: .bold))
+                .font(.title3)
+                .fontWeight(.bold)
                 .padding(.horizontal, 4)
             
             if viewModel.habits.isEmpty {
@@ -48,9 +49,9 @@ struct MyHabitsSection: View {
     }
     
     private var completedSectionHeader: some View {
-        Text("Completed Today ✓")
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(Color(hex: "5DD167"))
+        Text("Completed Today")
+            .font(.headline)
+            .foregroundColor(AppTheme.primary)
             .padding(.horizontal, 4)
             .padding(.top, 8)
             .transition(.opacity)

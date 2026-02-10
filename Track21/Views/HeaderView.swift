@@ -12,22 +12,23 @@ struct HeaderView: View {
     
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color(hex: "5DD167")
-            
+            AppTheme.primary
+
             VStack(alignment: .leading, spacing: 4) {
                 Text("Hi \(viewModel.userName)!")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.title)
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
-                
+
                 Text("Let's build habits today!")
-                    .font(.system(size: 16))
+                    .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.top, 60)
             .padding(.bottom, 80)
-            
+
             // Profile button
             Button(action: onProfileTap) {
                 Circle()
@@ -35,10 +36,12 @@ struct HeaderView: View {
                     .frame(width: 50, height: 50)
                     .overlay(
                         Text(initials)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(Color(hex: "5DD167"))
+                            .font(.headline)
+                            .foregroundColor(AppTheme.primary)
                     )
             }
+            .accessibilityLabel("Profile")
+            .accessibilityHint("Opens your profile settings")
             .padding(.top, 60)
             .padding(.trailing, 20)
         }

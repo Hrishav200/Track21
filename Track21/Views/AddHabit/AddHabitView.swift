@@ -41,11 +41,12 @@ struct AddHabitView: View {
                                 .frame(width: 40, height: 40)
                                 .overlay(
                                     Circle()
-                                        .stroke(selectedColor == color ? Color.black : Color.clear, lineWidth: 3)
+                                        .stroke(selectedColor == color ? Color.primary : Color.clear, lineWidth: 3)
                                 )
                                 .onTapGesture {
                                     selectedColor = color
                                 }
+                                .accessibilityLabel(colorNames[index])
                         }
                     }
                     .padding(.vertical, 8)

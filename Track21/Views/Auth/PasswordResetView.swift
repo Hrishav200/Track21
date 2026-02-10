@@ -77,7 +77,7 @@ struct PasswordResetView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(viewModel.isFormValid ? Color.blue : Color.gray)
+                    .background(viewModel.isFormValid ? AppTheme.primary : Color.gray)
                     .foregroundColor(.white)
                     .cornerRadius(12)
                 }

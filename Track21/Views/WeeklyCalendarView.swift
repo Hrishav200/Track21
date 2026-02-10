@@ -15,8 +15,10 @@ struct WeeklyCalendarView: View {
         let calendar = Calendar.current
         let today = Date()
         let weekday = calendar.component(.weekday, from: today)
-        let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today)!
-        
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today) else {
+            return [today]
+        }
+
         return (0..<7).compactMap { offset in
             calendar.date(byAdding: .day, value: offset, to: startOfWeek)
         }
@@ -27,7 +29,7 @@ struct WeeklyCalendarView: View {
             ForEach(Array(currentWeekDates.enumerated()), id: \.offset) { index, date in
                 VStack(spacing: 4) {
                     Text(weekDays[Calendar.current.component(.weekday, from: date) - 1])
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                     
                     Circle()
@@ -37,11 +39,11 @@ struct WeeklyCalendarView: View {
                             Group {
                                 if let habit = habit, habit.isCompleted(on: date) {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .bold))
+                                        .font(.caption.weight(.bold))
                                         .foregroundColor(.white)
                                 } else {
                                     Text(dayNumber(for: date))
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.subheadline.weight(.semibold))
                                         .foregroundColor(textColor(for: date))
                                 }
                             }
@@ -66,9 +68,9 @@ struct WeeklyCalendarView: View {
         
         switch status {
         case .completed:
-            return Color(hex: "5DD167") // Green
+            return AppTheme.primary
         case .missed:
-            return Color(hex: "FFB347") // Amber
+            return AppTheme.missed
         case .future:
             return Color.gray.opacity(0.15) // Empty/light
         case .outside:
