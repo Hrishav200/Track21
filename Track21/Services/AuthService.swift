@@ -126,10 +126,11 @@ class AuthService {
     }
 
     func deleteAccount() async throws {
-        // Sign out the user locally (actual account deletion should be
-        // handled server-side via a Supabase Edge Function or admin API
-        // since the client SDK cannot delete users directly)
-        try await supabase.auth.signOut()
+        // Call the server-side Edge Function to delete all user data
+        // (completed_dates, habits, profiles, and the auth user)
+        try await supabase.functions.invoke("delete-account")
+
+        // Server-side deletion succeeded; clear local state
         currentUser = nil
     }
 
