@@ -4,17 +4,30 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: macos-latest  # Uses default Xcode
+    runs-on: macos-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Build
+      - name: Show Xcode version
+        run: xcodebuild -version
+      
+      - name: List available schemes
+        run: xcodebuild -list -project Track21.xcodeproj
+      
+      - name: Resolve Swift Package Dependencies
         run: |
-          xcodebuild -version
+          xcodebuild -resolvePackageDependencies \
+            -project Track21.xcodeproj \
+            -scheme Track21
+      
+      - name: Build for iOS Simulator
+        run: |
           xcodebuild clean build \
             -project Track21.xcodeproj \
             -scheme Track21 \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO

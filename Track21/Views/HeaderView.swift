@@ -7,34 +7,56 @@
 import SwiftUI
 
 struct HeaderView: View {
+    var viewModel: HabitViewModel
+    var onProfileTap: () -> Void = {}
+    
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color(hex: "5DD167")
-            
+            AppTheme.primary
+
             VStack(alignment: .leading, spacing: 4) {
-                Text("Hi John!")
-                    .font(.system(size: 28, weight: .bold))
+                Text("Hi \(viewModel.userName)!")
+                    .font(.title)
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
-                
+
                 Text("Let's build habits today!")
-                    .font(.system(size: 16))
+                    .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.top, 60)
             .padding(.bottom, 80)
-            
-            Circle()
-                .fill(Color.white)
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Image(systemName: "person.fill")
-                        .foregroundColor(Color(hex: "5DD167"))
-                )
-                .padding(.top, 60)
-                .padding(.trailing, 20)
+
+            // Profile button
+            Button(action: onProfileTap) {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 50, height: 50)
+                    .overlay(
+                        Text(initials)
+                            .font(.headline)
+                            .foregroundColor(AppTheme.primary)
+                    )
+            }
+            .accessibilityLabel("Profile")
+            .accessibilityHint("Opens your profile settings")
+            .padding(.top, 60)
+            .padding(.trailing, 20)
         }
         .frame(height: 180)
+    }
+    
+    private var initials: String {
+        let name = viewModel.userName
+        let parts = name.split(separator: " ")
+        if parts.count >= 2 {
+            let first = parts.first?.prefix(1) ?? ""
+            let last = parts.last?.prefix(1) ?? ""
+            return "\(first)\(last)".uppercased()
+        } else {
+            return String(name.prefix(2)).uppercased()
+        }
     }
 }

@@ -4,47 +4,107 @@
 //
 //  Created by Hrishav Sunar on 22/12/2025.
 //
+
 import SwiftUI
 
 struct MyHabitsSection: View {
-    // Mock data
-    let incompleteHabits = [
-        MockHabit(name: "Do Exercise", goal: "1h", color: "FFB6A3"),
-        MockHabit(name: "Running", goal: "3km", color: "6BB6FF")
-    ]
-    
-    let completedHabits = [
-        MockHabit(name: "Study", goal: "2h", color: "5DD167"),
-        MockHabit(name: "Meditation", goal: "30min", color: "5DD167")
-    ]
+    @Bindable var viewModel: HabitViewModel
+    @Binding var selectedHabit: Habit?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("My Habits")
-                .font(.system(size: 18, weight: .bold))
+                .font(.title3)
+                .fontWeight(.bold)
                 .padding(.horizontal, 4)
             
-            ForEach(incompleteHabits, id: \.name) { habit in
-                HabitCardView(habit: habit, isCompleted: false)
-            }
-            
-            Text("Completed")
-                .font(.system(size: 16, weight: .semibold))
-                .padding(.horizontal, 4)
-                .padding(.top, 8)
-            
-            ForEach(completedHabits, id: \.name) { habit in
-                HabitCardView(habit: habit, isCompleted: true)
+            if viewModel.habits.isEmpty {
+                EmptyHabitsView()
+            } else {
+                habitsContent
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.incompleteHabits.map(\.id))
         .offset(y: -30)
     }
+    
+    @ViewBuilder
+    private var habitsContent: some View {
+        // Incomplete habits section
+        if !viewModel.incompleteHabits.isEmpty {
+            ForEach(viewModel.incompleteHabits) { habit in
+                habitRow(for: habit, isCompleted: false)
+            }
+        }
+        
+        // Completed habits section
+        if !viewModel.completedHabits.isEmpty {
+            completedSectionHeader
+            
+            ForEach(viewModel.completedHabits) { habit in
+                habitRow(for: habit, isCompleted: true)
+            }
+        }
+    }
+    
+    private var completedSectionHeader: some View {
+        Text("Completed Today")
+            .font(.headline)
+            .foregroundColor(AppTheme.primary)
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
+            .transition(.opacity)
+    }
+    
+    @ViewBuilder
+    private func habitRow(for habit: Habit, isCompleted: Bool) -> some View {
+        HabitCardView(
+            habit: habit,
+            isCompleted: isCompleted,
+            isSelected: selectedHabit?.id == habit.id,
+            onToggle: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    viewModel.toggleHabitCompletion(habit)
+                }
+            }
+        )
+        .transition(habitTransition(isCompleted: isCompleted))
+        .onTapGesture {
+            handleTap(for: habit)
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                Task {
+                    await viewModel.deleteHabit(habit)
+                }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+    
+    private func habitTransition(isCompleted: Bool) -> AnyTransition {
+        if isCompleted {
+            return .asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .move(edge: .top).combined(with: .opacity)
+            )
+        } else {
+            return .asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .move(edge: .bottom).combined(with: .opacity)
+            )
+        }
+    }
+    
+    private func handleTap(for habit: Habit) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if selectedHabit?.id == habit.id {
+                selectedHabit = nil
+            } else {
+                selectedHabit = habit
+            }
+        }
+    }
 }
-
-// MARK: - Mock Data Structure
-struct MockHabit {
-    let name: String
-    let goal: String
-    let color: String
-}
-
