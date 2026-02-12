@@ -13,7 +13,7 @@ class SyncService {
     var isSyncing = false
     var lastSyncDate: Date?
     var syncError: String?
-    private var pendingSync: (habits: [Habit], userId: UUID)?
+    var pendingSync: (habits: [Habit], userId: UUID)?
 
     private let supabase = SupabaseConfig.client
 
