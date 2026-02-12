@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Supabase
-internal import Auth
 
 struct ContentView: View {
     @Bindable var authService: AuthService
@@ -52,50 +50,33 @@ struct ContentView: View {
     
     private func loadUserProfile() async {
         guard let userId = authService.currentUser?.id else { return }
-        
+
         do {
-            // Try to fetch profile from Supabase
             if let profile = try await profileService.fetchProfile(userId: userId) {
-                // Use full name if available, otherwise username
-                let displayName = profile.fullName ?? profile.username
-                viewModel.saveUserName(displayName)
+                // Show first name only (e.g. "Hrishav Sunar" → "Hrishav")
+                let firstName = firstNameFrom(
+                    fullName: profile.fullName,
+                    fallback: profile.username
+                )
+                viewModel.saveUserName(firstName)
             } else {
-                // No profile yet, use fallback from auth
-                if let user = authService.currentUser {
-                    let name = extractUserName(from: user)
-                    viewModel.saveUserName(name)
-                }
+                // No profile yet — use email prefix as fallback
+                let fallback = authService.currentUser?.email?
+                    .components(separatedBy: "@").first?.capitalized ?? "Friend"
+                viewModel.saveUserName(fallback)
             }
         } catch {
-            // Fallback to auth user data
-            if let user = authService.currentUser {
-                let name = extractUserName(from: user)
-                viewModel.saveUserName(name)
-            }
+            let fallback = authService.currentUser?.email?
+                .components(separatedBy: "@").first?.capitalized ?? "Friend"
+            viewModel.saveUserName(fallback)
         }
     }
-    
-    private func extractUserName(from user: Auth.User) -> String {
-        // Try to get name from user metadata first
-        if let metadata = user.userMetadata["full_name"],
-           case let .string(fullName) = metadata,
-           !fullName.isEmpty {
-            return fullName
+
+    /// Extracts the first name from a full name string (e.g. "Hrishav Sunar" → "Hrishav")
+    private func firstNameFrom(fullName: String?, fallback: String) -> String {
+        if let fullName = fullName, !fullName.isEmpty {
+            return fullName.components(separatedBy: " ").first ?? fullName
         }
-        
-        // Fall back to first name from metadata
-        if let metadata = user.userMetadata["name"],
-           case let .string(name) = metadata,
-           !name.isEmpty {
-            return name
-        }
-        
-        // Fall back to email prefix (before @)
-        if let email = user.email {
-            let prefix = email.components(separatedBy: "@").first ?? email
-            return prefix.capitalized
-        }
-        
-        return "Friend"
+        return fallback
     }
 }

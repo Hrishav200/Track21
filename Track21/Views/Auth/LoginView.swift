@@ -11,7 +11,7 @@ struct LoginView: View {
     @Bindable var authService: AuthService
     @State private var email = ""
     @State private var password = ""
-    @State private var username = ""
+    @State private var fullName = ""
     @State private var isSignUp = false
     @State private var showingResetPassword = false
     @State private var resetEmail = ""
@@ -51,9 +51,8 @@ struct LoginView: View {
                             .keyboardType(.emailAddress)
 
                         if isSignUp {
-                            TextField("Username", text: $username)
+                            TextField("Full Name", text: $fullName)
                                 .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
                         }
 
                         SecureField("Password", text: $password)
@@ -67,7 +66,7 @@ struct LoginView: View {
 
                         Button(action: {
                             Task {
-                                try? await (isSignUp ? authService.signUp(email: email, password: password, username: username) : authService.signIn(email: email, password: password))
+                                try? await (isSignUp ? authService.signUp(email: email, password: password, fullName: fullName) : authService.signIn(email: email, password: password))
                             }
                         }) {
                             if authService.isLoading {
@@ -83,7 +82,7 @@ struct LoginView: View {
                         .background(AppTheme.primary)
                         .foregroundColor(.white)
                         .cornerRadius(12)
-                        .disabled(authService.isLoading || email.isEmpty || password.isEmpty || (isSignUp && username.isEmpty))
+                        .disabled(authService.isLoading || email.isEmpty || password.isEmpty || (isSignUp && fullName.isEmpty))
 
                         // Forgot password (only show on sign in)
                         if !isSignUp {
@@ -99,7 +98,7 @@ struct LoginView: View {
 
                         Button(action: {
                             isSignUp.toggle()
-                            username = ""
+                            fullName = ""
                         }) {
                             Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
                                 .font(.subheadline)
