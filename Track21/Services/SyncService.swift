@@ -131,6 +131,7 @@ class SyncService {
     
     private func syncCompletedDates(habits: [Habit]) async throws -> [Habit] {
         var updatedHabits = habits
+        let calendar = Calendar.current
 
         for (index, habit) in habits.enumerated() {
             do {
@@ -142,18 +143,12 @@ class SyncService {
                     .execute()
                     .value
 
-                // Merge with local dates
-                var allDates = Set(habit.completedDates)
-                for remoteDate in remoteDates {
-                    allDates.insert(Calendar.current.startOfDay(for: remoteDate.completedDate))
-                }
+                let localDays = Set(habit.completedDates.map { calendar.startOfDay(for: $0) })
 
-                updatedHabits[index].completedDates = Array(allDates).sorted()
-
-                // Upload any local dates not in remote
-                for date in habit.completedDates {
-                    let exists = remoteDates.contains { Calendar.current.isDate($0.completedDate, inSameDayAs: date) }
-                    if !exists {
+                // Upload local dates not in remote
+                for date in localDays {
+                    let existsRemotely = remoteDates.contains { calendar.isDate($0.completedDate, inSameDayAs: date) }
+                    if !existsRemotely {
                         let newDate = CompletedDate(
                             id: UUID(),
                             habitId: habit.id,
@@ -170,6 +165,26 @@ class SyncService {
                         }
                     }
                 }
+
+                // Delete remote dates that were removed locally (undo)
+                for remoteDate in remoteDates {
+                    let day = calendar.startOfDay(for: remoteDate.completedDate)
+                    if !localDays.contains(day) {
+                        do {
+                            try await supabase
+                                .from("completed_dates")
+                                .delete()
+                                .eq("id", value: remoteDate.id)
+                                .execute()
+                        } catch {
+                            // Continue syncing even if one delete fails
+                        }
+                    }
+                }
+
+                // Local dates are the source of truth — keep them as-is
+                updatedHabits[index].completedDates = Array(localDays).sorted()
+
             } catch {
                 // Continue syncing other habits even if one fails
             }
