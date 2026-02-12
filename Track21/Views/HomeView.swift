@@ -24,7 +24,7 @@ struct HomeView: View {
                     
                     TodayProgressView(viewModel: viewModel)
                     
-                    MyHabitsSection(viewModel: viewModel, selectedHabit: $selectedHabit)
+                    MyHabitsSection(viewModel: viewModel, authService: authService, selectedHabit: $selectedHabit)
                     
                     // Add habit button
                     Button(action: { showingAddHabit = true }) {

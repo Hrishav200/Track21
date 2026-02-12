@@ -9,8 +9,10 @@ import SwiftUI
 
 struct MyHabitsSection: View {
     @Bindable var viewModel: HabitViewModel
+    var authService: AuthService
     @Binding var selectedHabit: Habit?
-    
+    @State private var habitToEdit: Habit?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("My Habits")
@@ -27,6 +29,9 @@ struct MyHabitsSection: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.incompleteHabits.map(\.id))
         .offset(y: -30)
+        .sheet(item: $habitToEdit) { habit in
+            EditHabitView(viewModel: viewModel, authService: authService, habit: habit)
+        }
     }
     
     @ViewBuilder
@@ -74,6 +79,11 @@ struct MyHabitsSection: View {
             handleTap(for: habit)
         }
         .contextMenu {
+            Button {
+                habitToEdit = habit
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
             Button(role: .destructive) {
                 Task {
                     await viewModel.deleteHabit(habit)
