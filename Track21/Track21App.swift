@@ -31,6 +31,10 @@ struct Track21App: App {
                     LoginView(authService: authService)
                 }
             }
+            .task {
+                // Check for existing session after the UI is already rendered
+                await authService.checkSession()
+            }
             .onOpenURL { url in
                 // Handle deep links for auth (password reset, magic links, etc.)
                 Task {
