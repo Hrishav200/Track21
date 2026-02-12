@@ -19,15 +19,33 @@ class AuthService {
     private let supabase = SupabaseConfig.client
     
     init() {
-        Task {
+        // Restore session on startup without blocking the UI
+        Task { @MainActor in
             await checkSession()
         }
     }
-    
+
     func checkSession() async {
+        // Race the session check against a timeout so the app
+        // never hangs on first launch when there is no stored session
         do {
-            let session = try await supabase.auth.session
-            currentUser = session.user
+            let session = try await withThrowingTaskGroup(of: User?.self) { group in
+                group.addTask {
+                    let s = try await self.supabase.auth.session
+                    return s.user
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 5_000_000_000)
+                    return nil
+                }
+                // Whichever finishes first wins
+                if let result = try await group.next() {
+                    group.cancelAll()
+                    return result
+                }
+                return nil
+            }
+            currentUser = session
         } catch {
             currentUser = nil
         }
