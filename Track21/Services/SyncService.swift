@@ -155,46 +155,52 @@ class SyncService {
                     .value
 
                 let localDays = Set(habit.completedDates.map { calendar.startOfDay(for: $0) })
+                let remoteDays = Set(remoteDates.map { calendar.startOfDay(for: $0.completedDate) })
 
-                // Upload local dates not in remote
-                for date in localDays {
-                    let existsRemotely = remoteDates.contains { calendar.isDate($0.completedDate, inSameDayAs: date) }
-                    if !existsRemotely {
-                        let newDate = CompletedDate(
-                            id: UUID(),
-                            habitId: habit.id,
-                            completedDate: date,
-                            createdAt: Date()
-                        )
-                        do {
-                            try await supabase
-                                .from("completed_dates")
-                                .upsert(newDate)
-                                .execute()
-                        } catch {
-                            // Continue syncing other dates even if one fails
+                if habit.syncStatus == .pending {
+                    // User just changed something on THIS device — local wins
+
+                    // Upload local dates not in remote
+                    for date in localDays {
+                        if !remoteDays.contains(date) {
+                            let newDate = CompletedDate(
+                                id: UUID(),
+                                habitId: habit.id,
+                                completedDate: date,
+                                createdAt: Date()
+                            )
+                            do {
+                                try await supabase
+                                    .from("completed_dates")
+                                    .upsert(newDate)
+                                    .execute()
+                            } catch {
+                                // Continue syncing other dates even if one fails
+                            }
                         }
                     }
-                }
 
-                // Delete remote dates that were removed locally (undo)
-                for remoteDate in remoteDates {
-                    let day = calendar.startOfDay(for: remoteDate.completedDate)
-                    if !localDays.contains(day) {
-                        do {
-                            try await supabase
-                                .from("completed_dates")
-                                .delete()
-                                .eq("id", value: remoteDate.id)
-                                .execute()
-                        } catch {
-                            // Continue syncing even if one delete fails
+                    // Delete remote dates that were removed locally (undo)
+                    for remoteDate in remoteDates {
+                        let day = calendar.startOfDay(for: remoteDate.completedDate)
+                        if !localDays.contains(day) {
+                            do {
+                                try await supabase
+                                    .from("completed_dates")
+                                    .delete()
+                                    .eq("id", value: remoteDate.id)
+                                    .execute()
+                            } catch {
+                                // Continue syncing even if one delete fails
+                            }
                         }
                     }
-                }
 
-                // Local dates are the source of truth — keep them as-is
-                updatedHabits[index].completedDates = Array(localDays).sorted()
+                    updatedHabits[index].completedDates = Array(localDays).sorted()
+                } else {
+                    // No local changes — accept remote as source of truth
+                    updatedHabits[index].completedDates = Array(remoteDays).sorted()
+                }
 
             } catch {
                 // Continue syncing other habits even if one fails
