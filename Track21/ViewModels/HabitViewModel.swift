@@ -92,6 +92,12 @@ class HabitViewModel {
                 return updated
             }
             saveHabits()
+
+            // If another sync was queued while we were syncing, run it now
+            if let pending = syncService.pendingSync {
+                syncService.pendingSync = nil
+                await syncWithCloud(userId: pending.userId)
+            }
         } catch {
             // Sync error is exposed via syncError property
         }

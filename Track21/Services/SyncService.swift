@@ -13,16 +13,23 @@ class SyncService {
     var isSyncing = false
     var lastSyncDate: Date?
     var syncError: String?
-    
+    private var pendingSync: (habits: [Habit], userId: UUID)?
+
     private let supabase = SupabaseConfig.client
-    
+
     func syncHabits(habits: [Habit], userId: UUID) async throws -> [Habit] {
-        guard !isSyncing else { return habits }
+        if isSyncing {
+            // Queue this sync so it runs after the current one finishes
+            pendingSync = (habits, userId)
+            return habits
+        }
 
         isSyncing = true
         syncError = nil
 
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+        }
 
         do {
             // 1. Fetch remote habits
