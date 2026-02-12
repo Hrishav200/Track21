@@ -287,7 +287,8 @@ struct ProfileView: View {
     private func signOut() {
         Task {
             try? await authService.signOut()
-            dismiss()
+            // No need to dismiss — Track21App automatically switches
+            // to LoginView when currentUser becomes nil
         }
     }
 
@@ -297,7 +298,8 @@ struct ProfileView: View {
             do {
                 viewModel.clearData()
                 try await authService.deleteAccount()
-                dismiss()
+                // No need to dismiss — Track21App automatically switches
+                // to LoginView when currentUser becomes nil
             } catch {
                 errorMessage = "Failed to delete account: \(error.localizedDescription)"
                 isDeletingAccount = false
