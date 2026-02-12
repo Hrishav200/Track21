@@ -38,10 +38,14 @@ class SyncService {
             // 2. Merge local and remote habits
             let mergedHabits = mergeHabits(local: habits, remote: remoteHabits)
 
-            // 3. Upload pending changes
-            try await uploadPendingChanges(habits: mergedHabits, userId: userId)
+            // 3. Upload pending habit metadata (non-critical — don't abort sync on failure)
+            do {
+                try await uploadPendingChanges(habits: mergedHabits, userId: userId)
+            } catch {
+                // Habit metadata upload failed, but continue to sync completed dates
+            }
 
-            // 4. Sync completed dates
+            // 4. Sync completed dates (this is the critical step for toggling)
             let habitsWithDates = try await syncCompletedDates(habits: mergedHabits)
 
             lastSyncDate = Date()
