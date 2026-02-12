@@ -32,16 +32,21 @@ class AuthService {
         isLoading = true
         errorMessage = nil
 
+        let defaultUsername = email.components(separatedBy: "@").first ?? email
+
         do {
-            // First, sign up with Supabase Auth
+            // Sign up with metadata so the Supabase trigger can populate the profile
             let response = try await supabase.auth.signUp(
                 email: email,
-                password: password
+                password: password,
+                data: [
+                    "username": .string(defaultUsername),
+                    "full_name": .string(fullName)
+                ]
             )
 
             // Check if this is a genuinely new user
             // Supabase returns an empty identities array if the email already exists
-            // (to prevent email enumeration attacks)
             guard let identities = response.user.identities, !identities.isEmpty else {
                 isLoading = false
                 errorMessage = "An account with this email already exists. Please sign in."
@@ -50,12 +55,9 @@ class AuthService {
 
             currentUser = response.user
 
-            // Create the user profile — username defaults to email prefix
+            // Also upsert the profile in case the trigger didn't set all fields
             let userId = response.user.id
             let profileService = ProfileService()
-            let defaultUsername = email.components(separatedBy: "@").first ?? email
-
-            // Create profile with full name and email-based username
             _ = try await profileService.createProfile(
                 userId: userId,
                 username: defaultUsername,
