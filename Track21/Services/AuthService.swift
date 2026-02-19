@@ -12,7 +12,8 @@ import AuthenticationServices
 @Observable
 class AuthService {
     var currentUser: User?
-    var isAuthenticated: Bool { currentUser != nil }
+    var isAuthenticated: Bool { currentUser != nil || isGuest }
+    var isGuest = false
     var isLoading = false
     var errorMessage: String?
     
@@ -111,7 +112,15 @@ class AuthService {
         }
     }
     
+    func continueAsGuest() {
+        isGuest = true
+    }
+
     func signOut() async throws {
+        if isGuest {
+            isGuest = false
+            return
+        }
         try await supabase.auth.signOut()
         currentUser = nil
     }
