@@ -18,13 +18,36 @@ class AuthService {
     var errorMessage: String?
     
     private let supabase = SupabaseConfig.client
-    
+    private static let hasLaunchedKey = "Track21HasLaunched"
+
     func checkSession() async {
+        // If the app was deleted and reinstalled, the Keychain still holds the old
+        // session but UserDefaults is wiped. Detect this and clear the stale session.
+        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
+        if !hasLaunchedBefore {
+            UserDefaults.standard.set(true, forKey: Self.hasLaunchedKey)
+            try? await supabase.auth.signOut()
+            currentUser = nil
+            return
+        }
+
+        // Use a timeout so the UI doesn't freeze on slow networks
         do {
-            let session = try await supabase.auth.session
-            currentUser = session.user
+            let session = try await withThrowingTaskGroup(of: User.self) { group in
+                group.addTask {
+                    let session = try await self.supabase.auth.session
+                    return session.user
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 3_000_000_000) // 3 second timeout
+                    throw CancellationError()
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+            currentUser = session
         } catch {
-            // No stored session or expired — stay on login screen
             currentUser = nil
         }
     }
