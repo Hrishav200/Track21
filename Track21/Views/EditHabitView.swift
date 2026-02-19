@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+internal import Auth
 
 struct EditHabitView: View {
     @Bindable var viewModel: HabitViewModel
