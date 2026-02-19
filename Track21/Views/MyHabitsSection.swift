@@ -11,57 +11,84 @@ struct MyHabitsSection: View {
     @Bindable var viewModel: HabitViewModel
     var authService: AuthService
     @Binding var selectedHabit: Habit?
+    var selectedDate: Date
     @State private var habitToEdit: Habit?
+
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+
+    private var completedHabits: [Habit] {
+        viewModel.habits.filter { $0.isCompleted(on: selectedDate) }
+    }
+
+    private var incompleteHabits: [Habit] {
+        viewModel.habits.filter { !$0.isCompleted(on: selectedDate) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("My Habits")
-                .font(.title3)
-                .fontWeight(.bold)
-                .padding(.horizontal, 4)
-            
+            HStack {
+                Text("My Habits")
+                    .font(.title3)
+                    .fontWeight(.bold)
+
+                if !isToday {
+                    Text("(\(formattedDate))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 4)
+
             if viewModel.habits.isEmpty {
                 EmptyHabitsView()
             } else {
                 habitsContent
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.completedHabits.map(\.id))
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: viewModel.incompleteHabits.map(\.id))
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: completedHabits.map(\.id))
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: incompleteHabits.map(\.id))
         .offset(y: -30)
         .sheet(item: $habitToEdit) { habit in
             EditHabitView(viewModel: viewModel, authService: authService, habit: habit)
         }
     }
-    
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter.string(from: selectedDate)
+    }
+
     @ViewBuilder
     private var habitsContent: some View {
         // Incomplete habits section
-        if !viewModel.incompleteHabits.isEmpty {
-            ForEach(viewModel.incompleteHabits) { habit in
+        if !incompleteHabits.isEmpty {
+            ForEach(incompleteHabits) { habit in
                 habitRow(for: habit, isCompleted: false)
             }
         }
-        
+
         // Completed habits section
-        if !viewModel.completedHabits.isEmpty {
+        if !completedHabits.isEmpty {
             completedSectionHeader
-            
-            ForEach(viewModel.completedHabits) { habit in
+
+            ForEach(completedHabits) { habit in
                 habitRow(for: habit, isCompleted: true)
             }
         }
     }
-    
+
     private var completedSectionHeader: some View {
-        Text("Completed Today")
+        Text(isToday ? "Completed Today" : "Completed")
             .font(.headline)
             .foregroundColor(AppTheme.primary)
             .padding(.horizontal, 4)
             .padding(.top, 8)
             .transition(.opacity)
     }
-    
+
     @ViewBuilder
     private func habitRow(for habit: Habit, isCompleted: Bool) -> some View {
         HabitCardView(
@@ -70,7 +97,7 @@ struct MyHabitsSection: View {
             isSelected: selectedHabit?.id == habit.id,
             onToggle: {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.toggleHabitCompletion(habit)
+                    viewModel.toggleHabitCompletion(habit, for: selectedDate)
                 }
             }
         )
@@ -93,7 +120,7 @@ struct MyHabitsSection: View {
             }
         }
     }
-    
+
     private func habitTransition(isCompleted: Bool) -> AnyTransition {
         if isCompleted {
             return .asymmetric(
@@ -107,7 +134,7 @@ struct MyHabitsSection: View {
             )
         }
     }
-    
+
     private func handleTap(for habit: Habit) {
         withAnimation(.easeInOut(duration: 0.2)) {
             if selectedHabit?.id == habit.id {
