@@ -20,7 +20,13 @@ struct HomeView: View {
                 HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
                 
                 VStack(spacing: 16) {
-                    DayProgressCard(habit: selectedHabit)
+                    DayProgressCard(habit: selectedHabit, onDayTap: { date in
+                        if let habit = selectedHabit {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                viewModel.toggleHabitCompletion(habit, for: date)
+                            }
+                        }
+                    })
                     
                     TodayProgressView(viewModel: viewModel)
                     
@@ -52,10 +58,17 @@ struct HomeView: View {
             AddHabitView(viewModel: viewModel, authService: authService)
         }
         .onAppear {
-            // Select first habit by default if none selected
-            if selectedHabit == nil && !viewModel.habits.isEmpty {
-                selectedHabit = viewModel.habits.first
-            }
+            selectTopHabitIfNeeded()
+        }
+        .onChange(of: viewModel.habits.count) {
+            selectTopHabitIfNeeded()
+        }
+    }
+
+    /// Selects the topmost habit (first incomplete, or first completed if all done)
+    private func selectTopHabitIfNeeded() {
+        if selectedHabit == nil || !viewModel.habits.contains(where: { $0.id == selectedHabit?.id }) {
+            selectedHabit = viewModel.incompleteHabits.first ?? viewModel.completedHabits.first
         }
     }
 }

@@ -63,10 +63,14 @@ class HabitViewModel {
     }
     
     func toggleHabitCompletion(_ habit: Habit) {
+        toggleHabitCompletion(habit, for: Date())
+    }
+
+    func toggleHabitCompletion(_ habit: Habit, for date: Date) {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
-            habits[index].toggleCompletion()
+            habits[index].toggleCompletion(for: date)
             saveHabits()
-            
+
             // Trigger sync if user is logged in
             if let userId = habits[index].userId {
                 Task {

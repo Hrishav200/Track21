@@ -9,6 +9,7 @@ import SwiftUI
 
 struct DayProgressCard: View {
     let habit: Habit?
+    var onDayTap: ((Date) -> Void)?
     
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -49,7 +50,7 @@ struct DayProgressCard: View {
                     .font(.subheadline)
             }
 
-            WeeklyCalendarView(habit: habit)
+            WeeklyCalendarView(habit: habit, onDayTap: onDayTap)
         }
         .padding()
         .background(AppTheme.cardBackground)
