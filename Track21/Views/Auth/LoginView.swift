@@ -104,6 +104,15 @@ struct LoginView: View {
                                 .font(.subheadline)
                                 .foregroundColor(AppTheme.primary)
                         }
+
+                        Button(action: {
+                            authService.continueAsGuest()
+                        }) {
+                            Text("Continue as Guest")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 4)
                     }
                     .padding(.horizontal, 24)
 

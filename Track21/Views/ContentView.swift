@@ -17,14 +17,31 @@ struct ContentView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
-                    .tag(0)
-                
-                StatsView()
-                    .tag(1)
+            VStack(spacing: 0) {
+                // Guest mode warning banner
+                if authService.isGuest {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.icloud")
+                            .font(.subheadline)
+                        Text("Guest mode — data is not synced. Sign in to back up your habits.")
+                            .font(.caption)
+                        Spacer()
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.orange)
+                }
+
+                TabView(selection: $selectedTab) {
+                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                        .tag(0)
+
+                    StatsView()
+                        .tag(1)
+                }
             }
-            
+
             CustomTabBar(selectedTab: $selectedTab, showingAddHabit: $showingAddHabit)
         }
         .edgesIgnoringSafeArea(.bottom)
@@ -39,11 +56,14 @@ struct ContentView: View {
             )
         }
         .task {
+            guard !authService.isGuest else { return }
             await loadUserProfile()
-            
-            // Auto-sync when app opens
+
+            // Auto-sync in the background so it doesn't block UI
             if let userId = authService.currentUser?.id {
-                await viewModel.syncWithCloud(userId: userId)
+                Task.detached { [viewModel] in
+                    await viewModel.syncWithCloud(userId: userId)
+                }
             }
         }
     }
