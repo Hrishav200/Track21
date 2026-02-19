@@ -9,6 +9,7 @@ import SwiftUI
 
 struct WeeklyCalendarView: View {
     let habit: Habit?
+    var onDayTap: ((Date) -> Void)?
     let weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     
     private var currentWeekDates: [Date] {
@@ -48,6 +49,11 @@ struct WeeklyCalendarView: View {
                                 }
                             }
                         )
+                        .onTapGesture {
+                            if isTappable(date: date) {
+                                onDayTap?(date)
+                            }
+                        }
                 }
             }
         }
@@ -78,6 +84,13 @@ struct WeeklyCalendarView: View {
         }
     }
     
+    /// A day is tappable if it's within the habit period and not in the future
+    private func isTappable(date: Date) -> Bool {
+        guard let habit = habit else { return false }
+        let status = habit.dateStatus(for: date)
+        return status == .completed || status == .missed
+    }
+
     private func textColor(for date: Date) -> Color {
         guard let habit = habit else {
             return .gray
