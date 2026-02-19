@@ -11,27 +11,27 @@ struct HomeView: View {
     @Bindable var viewModel: HabitViewModel
     var authService: AuthService
     @State private var selectedHabit: Habit?
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
     @State private var showingAddHabit = false
     var onProfileTap: () -> Void = {}
-    
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
-                
+
                 VStack(spacing: 16) {
-                    DayProgressCard(habit: selectedHabit, onDayTap: { date in
-                        if let habit = selectedHabit {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                viewModel.toggleHabitCompletion(habit, for: date)
-                            }
-                        }
-                    })
-                    
-                    TodayProgressView(viewModel: viewModel)
-                    
-                    MyHabitsSection(viewModel: viewModel, authService: authService, selectedHabit: $selectedHabit)
-                    
+                    DayProgressCard(habit: selectedHabit, selectedDate: $selectedDate)
+
+                    TodayProgressView(viewModel: viewModel, selectedDate: selectedDate)
+
+                    MyHabitsSection(
+                        viewModel: viewModel,
+                        authService: authService,
+                        selectedHabit: $selectedHabit,
+                        selectedDate: selectedDate
+                    )
+
                     // Add habit button
                     Button(action: { showingAddHabit = true }) {
                         HStack {

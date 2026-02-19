@@ -9,20 +9,24 @@ import SwiftUI
 
 struct DayProgressCard: View {
     let habit: Habit?
-    var onDayTap: ((Date) -> Void)?
-    
+    @Binding var selectedDate: Date
+
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return formatter
     }
-    
-    private var todayFormatter: DateFormatter {
+
+    private var selectedDateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMM, yyyy"
         return formatter
     }
-    
+
     var body: some View {
         VStack(spacing: 16) {
             HStack {
@@ -46,11 +50,24 @@ struct DayProgressCard: View {
 
                 Spacer()
 
-                Text(todayFormatter.string(from: Date()))
-                    .font(.subheadline)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(selectedDateFormatter.string(from: selectedDate))
+                        .font(.subheadline)
+                    if !isToday {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDate = Calendar.current.startOfDay(for: Date())
+                            }
+                        } label: {
+                            Text("Back to Today")
+                                .font(.caption2)
+                                .foregroundColor(AppTheme.primary)
+                        }
+                    }
+                }
             }
 
-            WeeklyCalendarView(habit: habit, onDayTap: onDayTap)
+            WeeklyCalendarView(habit: habit, selectedDate: $selectedDate)
         }
         .padding()
         .background(AppTheme.cardBackground)
@@ -61,5 +78,5 @@ struct DayProgressCard: View {
 }
 
 #Preview {
-    DayProgressCard(habit: nil)
+    DayProgressCard(habit: nil, selectedDate: .constant(Date()))
 }
