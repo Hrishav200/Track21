@@ -10,18 +10,20 @@ import SwiftUI
 struct WeeklyCalendarView: View {
     let habit: Habit?
     @Binding var selectedDate: Date
+    var weekOffset: Int = 0
     let weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     private var currentWeekDates: [Date] {
         let calendar = Calendar.current
         let today = Date()
         let weekday = calendar.component(.weekday, from: today)
-        guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today) else {
+        guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today),
+              let startOfOffsetWeek = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: startOfWeek) else {
             return [today]
         }
 
         return (0..<7).compactMap { offset in
-            calendar.date(byAdding: .day, value: offset, to: startOfWeek)
+            calendar.date(byAdding: .day, value: offset, to: startOfOffsetWeek)
         }
     }
 
