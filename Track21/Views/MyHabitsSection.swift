@@ -49,6 +49,7 @@ struct MyHabitsSection: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: completedHabits.map(\.id))
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: incompleteHabits.map(\.id))
+        .clipped()
         .offset(y: -30)
         .sheet(item: $habitToEdit) { habit in
             EditHabitView(viewModel: viewModel, authService: authService, habit: habit)
@@ -124,12 +125,12 @@ struct MyHabitsSection: View {
     private func habitTransition(isCompleted: Bool) -> AnyTransition {
         if isCompleted {
             return .asymmetric(
-                insertion: .move(edge: .top).combined(with: .opacity),
+                insertion: .opacity,
                 removal: .move(edge: .top).combined(with: .opacity)
             )
         } else {
             return .asymmetric(
-                insertion: .move(edge: .top).combined(with: .opacity),
+                insertion: .opacity,
                 removal: .move(edge: .bottom).combined(with: .opacity)
             )
         }

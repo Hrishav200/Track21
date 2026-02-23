@@ -21,7 +21,7 @@ struct HomeView: View {
                 HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
 
                 VStack(spacing: 16) {
-                    DayProgressCard(habit: selectedHabit, selectedDate: $selectedDate)
+                    DayProgressCard(habit: selectedHabit, habits: viewModel.habits, selectedDate: $selectedDate)
 
                     TodayProgressView(viewModel: viewModel, selectedDate: selectedDate)
 
@@ -57,26 +57,23 @@ struct HomeView: View {
         .sheet(isPresented: $showingAddHabit) {
             AddHabitView(viewModel: viewModel, authService: authService)
         }
-        .onAppear {
-            selectTopHabitIfNeeded()
-        }
         .onChange(of: viewModel.habits.count) {
-            selectTopHabitIfNeeded()
+            refreshSelectedHabit()
         }
         .onChange(of: viewModel.lastSyncDate) {
-            selectTopHabitIfNeeded()
+            refreshSelectedHabit()
         }
     }
 
-    /// Selects the topmost habit (first incomplete, or first completed if all done).
-    /// Also refreshes selectedHabit to the current object from viewModel.habits
-    /// in case cloud sync replaced the array with new Habit instances.
-    private func selectTopHabitIfNeeded() {
-        if let current = selectedHabit,
-           let refreshed = viewModel.habits.first(where: { $0.id == current.id }) {
+    /// Keeps selectedHabit in sync with viewModel.habits without auto-selecting.
+    /// - If the selected habit still exists, refreshes its reference (in case sync replaced objects).
+    /// - If the selected habit was deleted, clears the selection to show the summary.
+    private func refreshSelectedHabit() {
+        guard let current = selectedHabit else { return }
+        if let refreshed = viewModel.habits.first(where: { $0.id == current.id }) {
             selectedHabit = refreshed
-        } else if selectedHabit == nil || !viewModel.habits.contains(where: { $0.id == selectedHabit?.id }) {
-            selectedHabit = viewModel.incompleteHabits.first ?? viewModel.completedHabits.first
+        } else {
+            selectedHabit = nil
         }
     }
 }
