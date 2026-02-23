@@ -63,11 +63,19 @@ struct HomeView: View {
         .onChange(of: viewModel.habits.count) {
             selectTopHabitIfNeeded()
         }
+        .onChange(of: viewModel.lastSyncDate) {
+            selectTopHabitIfNeeded()
+        }
     }
 
-    /// Selects the topmost habit (first incomplete, or first completed if all done)
+    /// Selects the topmost habit (first incomplete, or first completed if all done).
+    /// Also refreshes selectedHabit to the current object from viewModel.habits
+    /// in case cloud sync replaced the array with new Habit instances.
     private func selectTopHabitIfNeeded() {
-        if selectedHabit == nil || !viewModel.habits.contains(where: { $0.id == selectedHabit?.id }) {
+        if let current = selectedHabit,
+           let refreshed = viewModel.habits.first(where: { $0.id == current.id }) {
+            selectedHabit = refreshed
+        } else if selectedHabit == nil || !viewModel.habits.contains(where: { $0.id == selectedHabit?.id }) {
             selectedHabit = viewModel.incompleteHabits.first ?? viewModel.completedHabits.first
         }
     }
