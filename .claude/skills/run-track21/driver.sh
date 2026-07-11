@@ -80,8 +80,11 @@ cmd_build() {
 }
 
 find_app_path() {
+  # Excludes *-Runner.app (XCTest host apps for UITests targets) so this
+  # doesn't accidentally pick a test runner instead of the real app once
+  # `uitest` has been run at least once and left one in the build dir.
   find "$HOME/Library/Developer/Xcode/DerivedData/${SCHEME}"-*/Build/Products/Debug-iphonesimulator \
-    -maxdepth 1 -iname "*.app" 2>/dev/null | head -1
+    -maxdepth 1 -iname "*.app" ! -iname "*-Runner.app" 2>/dev/null | head -1
 }
 
 cmd_launch() {
