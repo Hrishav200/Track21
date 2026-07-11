@@ -65,6 +65,8 @@ struct ContentView: View {
             )
         }
         .task {
+            await NotificationService.shared.requestAuthorizationIfNeeded()
+
             // Auto-dismiss guest banner after 5 seconds
             if authService.isGuest {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)

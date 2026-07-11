@@ -46,8 +46,9 @@ class HabitViewModel {
     func addHabit(_ habit: Habit) {
         habits.append(habit)
         saveHabits()
+        NotificationService.shared.scheduleReminder(for: habit)
     }
-    
+
     func deleteHabit(_ habit: Habit) async {
         // Delete from cloud first if user is set
         if habit.userId != nil {
@@ -57,10 +58,11 @@ class HabitViewModel {
                 // Silently handle cloud delete failure - local delete still proceeds
             }
         }
-        
+
         // Remove from local
         habits.removeAll { $0.id == habit.id }
         saveHabits()
+        NotificationService.shared.cancelReminder(for: habit)
     }
     
     func toggleHabitCompletion(_ habit: Habit) {
@@ -85,6 +87,7 @@ class HabitViewModel {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
             habits[index] = habit
             saveHabits()
+            NotificationService.shared.scheduleReminder(for: habit)
         }
     }
     

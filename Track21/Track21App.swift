@@ -32,6 +32,12 @@ struct Track21App: App {
                 }
             }
             .task {
+                // UI tests launch with this flag so each test starts from a
+                // clean slate instead of accumulating habits across runs.
+                if ProcessInfo.processInfo.arguments.contains("-uitest-reset") {
+                    viewModel.clearData()
+                }
+
                 // Check for existing session after the UI is already rendered
                 await authService.checkSession()
             }

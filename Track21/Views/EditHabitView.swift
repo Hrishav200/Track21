@@ -17,6 +17,8 @@ struct EditHabitView: View {
     @State private var name: String
     @State private var goal: String
     @State private var selectedColor: String
+    @State private var reminderEnabled: Bool
+    @State private var reminderTime: Date
 
     let colors = ["FFB6A3", "6BB6FF", "5DD167", "FFD700", "FF6B9D", "A78BFA"]
     let colorNames = ["Coral", "Blue", "Green", "Gold", "Pink", "Purple"]
@@ -28,6 +30,8 @@ struct EditHabitView: View {
         _name = State(initialValue: habit.name)
         _goal = State(initialValue: habit.goal)
         _selectedColor = State(initialValue: habit.color)
+        _reminderEnabled = State(initialValue: habit.reminderTime != nil)
+        _reminderTime = State(initialValue: habit.reminderTime ?? Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
     }
 
     var body: some View {
@@ -67,6 +71,15 @@ struct EditHabitView: View {
                     }
                     .padding(.vertical, 4)
                 }
+
+                Section("Daily Reminder") {
+                    Toggle("Remind me to log this habit", isOn: $reminderEnabled.animation(.easeInOut(duration: 0.15)))
+                        .tint(AppTheme.primary)
+
+                    if reminderEnabled {
+                        DatePicker("Reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                    }
+                }
             }
             .navigationTitle("Edit Habit")
             .navigationBarTitleDisplayMode(.inline)
@@ -87,7 +100,19 @@ struct EditHabitView: View {
     }
 
     private var hasChanges: Bool {
-        name != habit.name || goal != habit.goal || selectedColor != habit.color
+        name != habit.name || goal != habit.goal || selectedColor != habit.color || reminderHasChanges
+    }
+
+    private var reminderHasChanges: Bool {
+        let newReminderTime = reminderEnabled ? reminderTime : nil
+        switch (habit.reminderTime, newReminderTime) {
+        case (nil, nil):
+            return false
+        case let (existing?, new?):
+            return Calendar.current.dateComponents([.hour, .minute], from: existing) != Calendar.current.dateComponents([.hour, .minute], from: new)
+        default:
+            return true
+        }
     }
 
     private func formattedDate(_ date: Date) -> String {
@@ -100,6 +125,7 @@ struct EditHabitView: View {
         habit.name = name
         habit.goal = goal
         habit.color = selectedColor
+        habit.reminderTime = reminderEnabled ? reminderTime : nil
         habit.updatedAt = Date()
         habit.syncStatus = .pending
 

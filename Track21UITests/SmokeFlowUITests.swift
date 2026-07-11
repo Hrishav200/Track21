@@ -17,8 +17,7 @@ final class SmokeFlowUITests: XCTestCase {
 
     @MainActor
     func testGuestAddHabitFlow() throws {
-        let app = XCUIApplication()
-        app.launch()
+        let app = launchApp()
         attach(app, name: "01-login")
 
         let continueAsGuest = app.buttons["Continue as Guest"]
@@ -52,9 +51,34 @@ final class SmokeFlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testAddHabitWithReminderGrantsNotificationPermission() throws {
+        // The notification permission alert belongs to springboard, not this
+        // app — an interruption monitor is how XCUITest taps "Allow" on it.
+        addUIInterruptionMonitor(withDescription: "Notification permission") { alert in
+            guard alert.buttons["Allow"].exists else { return false }
+            alert.buttons["Allow"].tap()
+            return true
+        }
+
+        let app = launchApp()
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        // ContentView's .task fires requestAuthorizationIfNeeded() on appear;
+        // a harmless tap forces XCUITest to service the interruption monitor.
+        app.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+        app.tap()
+
+        addHabit(app, name: "Drink Water", goal: "8 glasses", enableReminder: true)
+        attach(app, name: "08-home-with-reminder-habit")
+    }
+
+    @MainActor
     func testStatsTabShowsHabitProgress() throws {
-        let app = XCUIApplication()
-        app.launch()
+        let app = launchApp()
 
         let continueAsGuest = app.buttons["Continue as Guest"]
         XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
@@ -84,8 +108,19 @@ final class SmokeFlowUITests: XCTestCase {
         attach(app, name: "07-stats-all-habits")
     }
 
+    /// Launches with a flag that makes the app clear its persisted habits on
+    /// launch, so each test starts from a clean slate instead of piling up
+    /// "Drink Water" habits left over from previous runs in this session.
     @MainActor
-    private func addHabit(_ app: XCUIApplication, name: String, goal: String) {
+    private func launchApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uitest-reset"]
+        app.launch()
+        return app
+    }
+
+    @MainActor
+    private func addHabit(_ app: XCUIApplication, name: String, goal: String, enableReminder: Bool = false) {
         app.buttons["plus"].tap()
 
         let nameField = app.textFields["Habit name"]
@@ -96,6 +131,12 @@ final class SmokeFlowUITests: XCTestCase {
         let goalField = app.textFields["Goal (e.g., 30min, 5km)"]
         goalField.tap()
         goalField.typeText(goal)
+
+        if enableReminder {
+            let reminderToggle = app.switches.firstMatch
+            XCTAssertTrue(reminderToggle.waitForExistence(timeout: 5))
+            reminderToggle.tap()
+        }
 
         app.navigationBars["New Habit"].buttons["Add"].tap()
         XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))

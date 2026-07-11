@@ -17,6 +17,8 @@ struct AddHabitView: View {
     @State private var goal = ""
     @State private var selectedColor = "FFB6A3"
     @State private var startDate = Date()
+    @State private var reminderEnabled = false
+    @State private var reminderTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
 
     let colors = ["FFB6A3", "6BB6FF", "5DD167", "FFD700", "FF6B9D", "A78BFA"]
     let colorNames = ["Coral", "Blue", "Green", "Gold", "Pink", "Purple"]
@@ -32,6 +34,7 @@ struct AddHabitView: View {
                         detailsCard
                         colorCard
                         startDateCard
+                        reminderCard
                         challengeInfoCard
                     }
                     .padding(20)
@@ -143,6 +146,29 @@ struct AddHabitView: View {
         .cornerRadius(16)
     }
 
+    // MARK: - Reminder
+
+    private var reminderCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Toggle(isOn: $reminderEnabled.animation(.easeInOut(duration: 0.15))) {
+                VStack(alignment: .leading, spacing: 2) {
+                    sectionLabel("DAILY REMINDER")
+                    Text("Get a notification to log this habit")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .tint(AppTheme.primary)
+
+            if reminderEnabled {
+                DatePicker("Reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+            }
+        }
+        .padding(16)
+        .background(AppTheme.cardBackground)
+        .cornerRadius(16)
+    }
+
     // MARK: - Challenge info
 
     private var challengeInfoCard: some View {
@@ -190,7 +216,8 @@ struct AddHabitView: View {
             color: selectedColor,
             startDate: startDate,
             userId: authService.currentUser?.id,
-            syncStatus: .pending
+            syncStatus: .pending,
+            reminderTime: reminderEnabled ? reminderTime : nil
         )
         viewModel.addHabit(habit)
 

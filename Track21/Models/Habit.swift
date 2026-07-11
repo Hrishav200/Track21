@@ -26,7 +26,12 @@ final class Habit: Codable, Identifiable {
     var createdAt: Date
     var updatedAt: Date?
     var deletedAt: Date?
-    
+    /// Time-of-day for a daily reminder notification. Only the hour/minute
+    /// are used. `nil` means no reminder is scheduled. Local-only — there's
+    /// no `reminder_time` column in Supabase, so this doesn't sync across
+    /// devices (local notifications wouldn't carry over anyway).
+    var reminderTime: Date?
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -39,8 +44,9 @@ final class Habit: Codable, Identifiable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
+        case reminderTime = "reminder_time"
     }
-    
+
     // MARK: - Initializer
     init(
         id: UUID = UUID(),
@@ -53,7 +59,8 @@ final class Habit: Codable, Identifiable {
         syncStatus: SyncStatus = .pending,
         createdAt: Date = Date(),
         updatedAt: Date? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        reminderTime: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -66,8 +73,9 @@ final class Habit: Codable, Identifiable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
+        self.reminderTime = reminderTime
     }
-    
+
     // MARK: - Codable
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -82,8 +90,9 @@ final class Habit: Codable, Identifiable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        reminderTime = try container.decodeIfPresent(Date.self, forKey: .reminderTime)
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -97,6 +106,7 @@ final class Habit: Codable, Identifiable {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try container.encodeIfPresent(reminderTime, forKey: .reminderTime)
     }
     
     // MARK: - Computed Properties
