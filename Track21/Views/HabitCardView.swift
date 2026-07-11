@@ -26,9 +26,22 @@ struct HabitCardView: View {
                 .cornerRadius(8)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(habit.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                HStack(spacing: 6) {
+                    Text(habit.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    if habit.currentStreak > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 10))
+                            Text("\(habit.currentStreak)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(.orange)
+                    }
+                }
 
                 Text("Goal: \(habit.goal)")
                     .font(.caption)
@@ -67,6 +80,7 @@ struct HabitCardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isSelected ? Color(hex: habit.color) : Color.clear, lineWidth: 2)
         )
+        .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
         .accessibilityElement(children: .combine)
     }
 }

@@ -9,12 +9,16 @@ import SwiftUI
 struct HeaderView: View {
     var viewModel: HabitViewModel
     var onProfileTap: () -> Void = {}
-    
+
+    private var bestStreak: Int {
+        viewModel.habits.map(\.currentStreak).max() ?? 0
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             AppTheme.primary
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Hi \(viewModel.userName)!")
                     .font(.title)
                     .fontWeight(.bold)
@@ -23,6 +27,22 @@ struct HeaderView: View {
                 Text("Let's build habits today!")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
+
+                if bestStreak > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption2)
+                        Text(bestStreak == 1 ? "1 day streak" : "\(bestStreak) day streak")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.18))
+                    .cornerRadius(20)
+                    .padding(.top, 4)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
@@ -47,7 +67,7 @@ struct HeaderView: View {
         }
         .frame(height: 180)
     }
-    
+
     private var initials: String {
         let name = viewModel.userName
         let parts = name.split(separator: " ")

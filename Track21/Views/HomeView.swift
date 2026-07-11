@@ -23,8 +23,6 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     DayProgressCard(habit: selectedHabit, habits: viewModel.habits, selectedDate: $selectedDate)
 
-                    TodayProgressView(viewModel: viewModel, selectedDate: selectedDate)
-
                     MyHabitsSection(
                         viewModel: viewModel,
                         authService: authService,

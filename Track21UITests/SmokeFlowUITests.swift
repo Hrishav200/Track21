@@ -47,6 +47,7 @@ final class SmokeFlowUITests: XCTestCase {
 
         let habitCard = app.staticTexts["Drink Water"]
         XCTAssertTrue(habitCard.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 0.6) // let the sheet-dismiss animation settle before screenshotting
         attach(app, name: "04-home-with-habit")
     }
 
