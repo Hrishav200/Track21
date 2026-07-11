@@ -47,4 +47,14 @@ struct NotificationServiceTests {
         #expect(NotificationService.reminderIdentifier(for: habit) == NotificationService.reminderIdentifier(for: habit))
         #expect(NotificationService.reminderIdentifier(for: habit).contains(habit.id.uuidString))
     }
+
+    /// Regression test for a real bug: without registering as the
+    /// UNUserNotificationCenterDelegate, iOS silently drops a local
+    /// notification that fires while the app is in the foreground — no
+    /// banner, no sound. Track21App.init() registers this at launch; since
+    /// this test runs in-process with the app (it's a unit test, not a UI
+    /// test), that init() has already run by the time this executes.
+    @Test func delegateIsRegisteredAtLaunch() {
+        #expect(UNUserNotificationCenter.current().delegate === NotificationService.shared)
+    }
 }

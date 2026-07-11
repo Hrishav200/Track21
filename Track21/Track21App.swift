@@ -15,7 +15,13 @@ struct Track21App: App {
     @State private var viewModel = HabitViewModel()
     @State private var profileService = ProfileService()
     @State private var showPasswordReset = false
-    
+
+    init() {
+        // As early as possible — without this, a reminder that fires while
+        // the app happens to be in the foreground is silently dropped.
+        NotificationService.shared.registerAsDelegate()
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

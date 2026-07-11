@@ -17,13 +17,25 @@ import UserNotifications
 /// pure and separate from the `UNUserNotificationCenter` calls so it can be
 /// unit tested without depending on notification authorization state, which
 /// can't be granted headlessly in a plain XCTest/Swift Testing process.
-final class NotificationService {
+final class NotificationService: NSObject {
     static let shared = NotificationService()
 
-    private init() {}
+    private override init() {
+        super.init()
+    }
 
     private var center: UNUserNotificationCenter {
         UNUserNotificationCenter.current()
+    }
+
+    /// Must be called once, as early as possible (Track21App.init()). Without
+    /// a delegate, iOS silently drops a local notification that fires while
+    /// the app is in the foreground — no banner, no sound — which is
+    /// probably why reminders "don't work" on a real device where the app
+    /// is naturally open sometimes when a reminder hits, even though
+    /// scheduling and permission are both fine.
+    func registerAsDelegate() {
+        center.delegate = self
     }
 
     static func reminderIdentifier(for habit: Habit) -> String {
@@ -69,5 +81,15 @@ final class NotificationService {
 
     func cancelReminder(for habit: Habit) {
         center.removePendingNotificationRequests(withIdentifiers: [Self.reminderIdentifier(for: habit)])
+    }
+}
+
+extension NotificationService: UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge, .list])
     }
 }
