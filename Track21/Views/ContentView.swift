@@ -46,7 +46,7 @@ struct ContentView: View {
                     HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
                         .tag(0)
 
-                    StatsView()
+                    StatsView(viewModel: viewModel)
                         .tag(1)
                 }
             }

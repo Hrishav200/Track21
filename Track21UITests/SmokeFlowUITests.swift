@@ -51,6 +51,56 @@ final class SmokeFlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testStatsTabShowsHabitProgress() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        addHabit(app, name: "Drink Water", goal: "8 glasses")
+        app.buttons["Mark Drink Water complete"].tap()
+
+        addHabit(app, name: "Read", goal: "20 pages")
+
+        let statsTab = app.buttons["Statistics"]
+        XCTAssertTrue(statsTab.waitForExistence(timeout: 5))
+        statsTab.tap()
+
+        XCTAssertTrue(app.staticTexts["Statistics"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["This Week"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["21-Day Journey"].waitForExistence(timeout: 5))
+        attach(app, name: "05-stats-first-habit")
+
+        let readChip = app.buttons["Read"]
+        XCTAssertTrue(readChip.waitForExistence(timeout: 5))
+        readChip.tap()
+        attach(app, name: "06-stats-second-habit")
+
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["All Habits"].waitForExistence(timeout: 5))
+        attach(app, name: "07-stats-all-habits")
+    }
+
+    @MainActor
+    private func addHabit(_ app: XCUIApplication, name: String, goal: String) {
+        app.buttons["plus"].tap()
+
+        let nameField = app.textFields["Habit name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText(name)
+
+        let goalField = app.textFields["Goal (e.g., 30min, 5km)"]
+        goalField.tap()
+        goalField.typeText(goal)
+
+        app.navigationBars["New Habit"].buttons["Add"].tap()
+        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     private func attach(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

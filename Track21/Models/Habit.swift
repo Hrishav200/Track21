@@ -119,7 +119,73 @@ final class Habit: Codable, Identifiable {
         let end = Calendar.current.startOfDay(for: endDate)
         return today <= end
     }
-    
+
+    /// Number of days from `startDate` through today (or `endDate`, whichever is sooner).
+    var elapsedDaysCount: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: min(Date(), endDate))
+        guard end >= start else { return 0 }
+        return (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+    }
+
+    /// Total number of days marked complete within the 21-day window.
+    var totalCompletions: Int {
+        let start = Calendar.current.startOfDay(for: startDate)
+        let end = Calendar.current.startOfDay(for: endDate)
+        return completedDates.filter { $0 >= start && $0 <= end }.count
+    }
+
+    /// Fraction of elapsed days (0...1) that were completed.
+    var completionRate: Double {
+        guard elapsedDaysCount > 0 else { return 0 }
+        return Double(totalCompletions) / Double(elapsedDaysCount)
+    }
+
+    /// Consecutive completed days counting back from today. A day that hasn't
+    /// ended yet (i.e. today, if not yet completed) doesn't break the streak.
+    var currentStreak: Int {
+        let calendar = Calendar.current
+        var day = calendar.startOfDay(for: Date())
+        let start = calendar.startOfDay(for: startDate)
+
+        if !isCompleted(on: day) {
+            guard day > start, let yesterday = calendar.date(byAdding: .day, value: -1, to: day) else { return 0 }
+            day = yesterday
+        }
+
+        var streak = 0
+        while day >= start, isCompleted(on: day) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previous
+        }
+        return streak
+    }
+
+    /// Longest run of consecutive completed days within the 21-day window so far.
+    var bestStreak: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: min(Date(), endDate))
+        guard end >= start else { return 0 }
+
+        var best = 0
+        var current = 0
+        var day = start
+        while day <= end {
+            if isCompleted(on: day) {
+                current += 1
+                best = max(best, current)
+            } else {
+                current = 0
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return best
+    }
+
     // MARK: - Methods
     
     func isCompleted(on date: Date) -> Bool {

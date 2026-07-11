@@ -37,6 +37,7 @@
 		94319C312E96742000CCF6A3 /* Track21 – 21 Day Habit Builder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Track21 – 21 Day Habit Builder.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		94319C402E96742100CCF6A3 /* Track21Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Track21Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		94319C4A2E96742100CCF6A3 /* Track21UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Track21UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9476875A30025B2700466615 /* Track21.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Track21.xctestplan; sourceTree = "<group>"; };
 		94C2F7D32F2A2FC1000C1A98 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/AuthenticationServices.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
@@ -111,6 +112,7 @@
 		94319C282E96742000CCF6A3 = {
 			isa = PBXGroup;
 			children = (
+				9476875A30025B2700466615 /* Track21.xctestplan */,
 				94319C332E96742000CCF6A3 /* Track21 */,
 				94319C432E96742100CCF6A3 /* Track21Tests */,
 				94319C4D2E96742100CCF6A3 /* Track21UITests */,
@@ -616,7 +618,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Track21.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Track21";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Track21 – 21 Day Habit Builder.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Track21 – 21 Day Habit Builder";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
@@ -642,7 +644,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Track21.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Track21";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Track21 – 21 Day Habit Builder.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Track21 – 21 Day Habit Builder";
 				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
