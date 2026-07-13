@@ -21,7 +21,11 @@ class HabitViewModel {
     var isSyncing: Bool { syncService.isSyncing }
     var lastSyncDate: Date? { syncService.lastSyncDate }
     var syncError: String? { syncService.syncError }
-    
+
+    var freezesAvailable: Int { StreakFreezeService.shared.freezesAvailable }
+    var freezeRefillDate: Date { StreakFreezeService.shared.refillDate }
+    var isPremium: Bool { StreakFreezeService.shared.isPremium }
+
     init() {
         loadHabits()
         loadUserName()
@@ -111,6 +115,18 @@ class HabitViewModel {
         }
     }
     
+    /// Call once per app foreground. Auto-protects any habit that missed
+    /// exactly yesterday while mid-streak, consuming a freeze if available.
+    /// Returns the habits that got protected so the UI can show a toast.
+    @discardableResult
+    func protectStreaksIfNeeded() -> [Habit] {
+        let protected = StreakFreezeService.shared.protectStreaks(for: habits)
+        if !protected.isEmpty {
+            saveHabits()
+        }
+        return protected
+    }
+
     func saveUserName(_ name: String) {
         userName = name
         UserDefaults.standard.set(name, forKey: userNameKey)

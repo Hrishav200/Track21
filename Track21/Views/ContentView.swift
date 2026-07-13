@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var showingAddHabit = false
     @State private var showingProfile = false
     @State private var showGuestBanner = true
+    @State private var freezeToastNames: [String] = []
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -39,6 +40,28 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(Color.orange)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // Streak freeze auto-consumption toast (see protectStreaksIfNeeded())
+                if !freezeToastNames.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "snowflake")
+                            .font(.subheadline)
+                        Text(freezeToastMessage)
+                            .font(.caption)
+                        Spacer()
+                        Button {
+                            withAnimation { freezeToastNames = [] }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2.weight(.bold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(AppTheme.frozen)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
@@ -66,6 +89,15 @@ struct ContentView: View {
         }
         .task {
             await NotificationService.shared.requestAuthorizationIfNeeded()
+
+            let protectedHabits = viewModel.protectStreaksIfNeeded()
+            if !protectedHabits.isEmpty {
+                withAnimation { freezeToastNames = protectedHabits.map(\.name) }
+                Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    withAnimation { freezeToastNames = [] }
+                }
+            }
 
             // Auto-dismiss guest banner after 5 seconds
             if authService.isGuest {
@@ -114,5 +146,12 @@ struct ContentView: View {
             return fullName.components(separatedBy: " ").first ?? fullName
         }
         return fallback
+    }
+
+    private var freezeToastMessage: String {
+        let names = freezeToastNames.joined(separator: ", ")
+        return freezeToastNames.count == 1
+            ? "Streak freeze used for \(names) — your streak is safe!"
+            : "Streak freeze used for \(names) — your streaks are safe!"
     }
 }

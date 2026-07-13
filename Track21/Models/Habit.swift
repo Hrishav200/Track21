@@ -31,6 +31,10 @@ final class Habit: Codable, Identifiable {
     /// no `reminder_time` column in Supabase, so this doesn't sync across
     /// devices (local notifications wouldn't carry over anyway).
     var reminderTime: Date?
+    /// Days protected by a streak freeze — missed, but don't break the
+    /// streak. Set by StreakFreezeService, not by the user directly.
+    /// Local-only, same reasoning as reminderTime.
+    var frozenDates: [Date]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -45,6 +49,7 @@ final class Habit: Codable, Identifiable {
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
         case reminderTime = "reminder_time"
+        case frozenDates = "frozen_dates"
     }
 
     // MARK: - Initializer
@@ -60,7 +65,8 @@ final class Habit: Codable, Identifiable {
         createdAt: Date = Date(),
         updatedAt: Date? = nil,
         deletedAt: Date? = nil,
-        reminderTime: Date? = nil
+        reminderTime: Date? = nil,
+        frozenDates: [Date] = []
     ) {
         self.id = id
         self.name = name
@@ -74,6 +80,7 @@ final class Habit: Codable, Identifiable {
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
         self.reminderTime = reminderTime
+        self.frozenDates = frozenDates.map { Calendar.current.startOfDay(for: $0) }
     }
 
     // MARK: - Codable
@@ -91,6 +98,7 @@ final class Habit: Codable, Identifiable {
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
         reminderTime = try container.decodeIfPresent(Date.self, forKey: .reminderTime)
+        frozenDates = try container.decodeIfPresent([Date].self, forKey: .frozenDates) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -107,6 +115,7 @@ final class Habit: Codable, Identifiable {
         try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
         try container.encodeIfPresent(reminderTime, forKey: .reminderTime)
+        try container.encode(frozenDates, forKey: .frozenDates)
     }
     
     // MARK: - Computed Properties
@@ -152,20 +161,29 @@ final class Habit: Codable, Identifiable {
         return Double(totalCompletions) / Double(elapsedDaysCount)
     }
 
-    /// Consecutive completed days counting back from today. A day that hasn't
-    /// ended yet (i.e. today, if not yet completed) doesn't break the streak.
+    /// Consecutive completed-or-frozen days counting back from today. A day
+    /// that hasn't ended yet (i.e. today, if not yet completed) doesn't
+    /// break the streak. A frozen day counts as continuing the streak
+    /// (protects it) but isn't a real completion.
     var currentStreak: Int {
+        currentStreak(asOf: Date())
+    }
+
+    /// Same as `currentStreak`, but anchored at an arbitrary reference date
+    /// instead of "now" — used by StreakFreezeLogic to check whether a
+    /// habit had an active streak going into a specific missed day.
+    func currentStreak(asOf referenceDate: Date) -> Int {
         let calendar = Calendar.current
-        var day = calendar.startOfDay(for: Date())
+        var day = calendar.startOfDay(for: referenceDate)
         let start = calendar.startOfDay(for: startDate)
 
-        if !isCompleted(on: day) {
-            guard day > start, let yesterday = calendar.date(byAdding: .day, value: -1, to: day) else { return 0 }
-            day = yesterday
+        if !isCompleted(on: day), !isFrozen(on: day) {
+            guard day > start, let previousDay = calendar.date(byAdding: .day, value: -1, to: day) else { return 0 }
+            day = previousDay
         }
 
         var streak = 0
-        while day >= start, isCompleted(on: day) {
+        while day >= start, isCompleted(on: day) || isFrozen(on: day) {
             streak += 1
             guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
             day = previous
@@ -173,7 +191,8 @@ final class Habit: Codable, Identifiable {
         return streak
     }
 
-    /// Longest run of consecutive completed days within the 21-day window so far.
+    /// Longest run of consecutive completed-or-frozen days within the
+    /// 21-day window so far.
     var bestStreak: Int {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: startDate)
@@ -184,7 +203,7 @@ final class Habit: Codable, Identifiable {
         var current = 0
         var day = start
         while day <= end {
-            if isCompleted(on: day) {
+            if isCompleted(on: day) || isFrozen(on: day) {
                 current += 1
                 best = max(best, current)
             } else {
@@ -207,7 +226,13 @@ final class Habit: Codable, Identifiable {
     func isCompletedToday() -> Bool {
         isCompleted(on: Date())
     }
-    
+
+    func isFrozen(on date: Date) -> Bool {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        return frozenDates.contains { calendar.startOfDay(for: $0) == targetDay }
+    }
+
     func toggleCompletion(for date: Date) {
         let calendar = Calendar.current
         let targetDay = calendar.startOfDay(for: date)
@@ -242,12 +267,17 @@ final class Habit: Codable, Identifiable {
         if isCompleted(on: date) {
             return .completed
         }
-        
+
+        // Protected by a streak freeze
+        if isFrozen(on: date) {
+            return .frozen
+        }
+
         // Future (not yet reached)
         if targetDay > today {
             return .future
         }
-        
+
         // Past and not completed = missed
         return .missed
     }
@@ -257,6 +287,7 @@ final class Habit: Codable, Identifiable {
 
 enum HabitDateStatus {
     case completed  // Green - tracked and completed
+    case frozen     // Ice blue - missed, but protected by a streak freeze
     case missed     // Amber - day passed, not tracked
     case future     // Empty - not yet reached
     case outside    // Outside the 21-day period

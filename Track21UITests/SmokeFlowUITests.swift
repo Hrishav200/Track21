@@ -112,11 +112,51 @@ final class SmokeFlowUITests: XCTestCase {
     /// launch, so each test starts from a clean slate instead of piling up
     /// "Drink Water" habits left over from previous runs in this session.
     @MainActor
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-uitest-reset"]
+        app.launchArguments = ["-uitest-reset"] + extraArguments
         app.launch()
         return app
+    }
+
+    @MainActor
+    func testProfileShowsFreezeWalletCard() throws {
+        let app = launchApp()
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        let profileButton = app.buttons["Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 10))
+        profileButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Streak Freezes"].waitForExistence(timeout: 5))
+        attach(app, name: "11-profile-freeze-wallet")
+    }
+
+    /// Seeds a habit with a completed/frozen/missed mix (via
+    /// -uitest-seed-frozen-habit) so the streak-freeze UI — the journey
+    /// grid's ice-blue cell, the weekly calendar's snowflake, and the
+    /// header's freeze-count badge — can be screenshotted without waiting
+    /// for a real missed day to trigger auto-protection.
+    @MainActor
+    func testFrozenDayRendersInJourneyGridAndHeader() throws {
+        let app = launchApp(extraArguments: ["-uitest-seed-frozen-habit"])
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        XCTAssertTrue(app.staticTexts["Drink Water"].waitForExistence(timeout: 10))
+        attach(app, name: "09-home-with-frozen-day")
+
+        let statsTab = app.buttons["Statistics"]
+        XCTAssertTrue(statsTab.waitForExistence(timeout: 5))
+        statsTab.tap()
+
+        XCTAssertTrue(app.staticTexts["21-Day Journey"].waitForExistence(timeout: 5))
+        attach(app, name: "10-journey-grid-with-frozen-day")
     }
 
     @MainActor

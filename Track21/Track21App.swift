@@ -44,6 +44,22 @@ struct Track21App: App {
                     viewModel.clearData()
                 }
 
+                // Seeds a habit with a mix of completed/frozen/missed days so
+                // the streak-freeze UI (journey grid, weekly calendar) can be
+                // screenshotted without waiting for a real missed day.
+                if ProcessInfo.processInfo.arguments.contains("-uitest-seed-frozen-habit") {
+                    let calendar = Calendar.current
+                    let startDate = calendar.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+                    let habit = Habit(name: "Drink Water", goal: "8 glasses", color: "6BB6FF", startDate: startDate)
+                    habit.completedDates = [6, 5, 3, 1].compactMap {
+                        calendar.date(byAdding: .day, value: -$0, to: Date())
+                    }
+                    if let frozenDay = calendar.date(byAdding: .day, value: -4, to: Date()) {
+                        habit.frozenDates = [frozenDay]
+                    }
+                    viewModel.addHabit(habit)
+                }
+
                 // Check for existing session after the UI is already rendered
                 await authService.checkSession()
             }

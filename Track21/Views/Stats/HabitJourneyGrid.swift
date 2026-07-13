@@ -54,6 +54,10 @@ struct HabitJourneyGrid: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.white)
+                    } else if status == .frozen {
+                        Image(systemName: "snowflake")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
                     } else {
                         Text("\(dayNumber)")
                             .font(.system(size: 9, weight: .medium))
@@ -66,6 +70,7 @@ struct HabitJourneyGrid: View {
     private func color(for status: HabitDateStatus) -> Color {
         switch status {
         case .completed: return habitColor
+        case .frozen: return AppTheme.frozen
         case .missed: return AppTheme.missed
         case .future: return Color.gray.opacity(0.12)
         case .outside: return Color.gray.opacity(0.08)
@@ -75,6 +80,7 @@ struct HabitJourneyGrid: View {
     private var legend: some View {
         HStack(spacing: 16) {
             legendItem(color: habitColor, label: "Done")
+            legendItem(color: AppTheme.frozen, label: "Frozen")
             legendItem(color: AppTheme.missed, label: "Missed")
             legendItem(color: Color.gray.opacity(0.12), label: "Upcoming")
         }

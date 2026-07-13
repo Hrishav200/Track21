@@ -127,6 +127,10 @@ struct ProfileView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
 
+                        // Streak freeze wallet
+                        freezeWalletCard
+                            .padding(.horizontal, 24)
+
                         // Privacy policy link
                         Link(destination: URL(string: "https://hrishav200.github.io/Track21/privacy/")!) {
                             HStack {
@@ -197,6 +201,48 @@ struct ProfileView: View {
         }
     }
     
+    private var freezeWalletCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.frozen.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "snowflake")
+                    .foregroundColor(AppTheme.frozen)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Streak Freezes")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                if viewModel.isPremium {
+                    Text("Unlimited — Premium members never lose a streak to a missed day.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("\(viewModel.freezesAvailable) remaining · Refills \(formattedRefillDate)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Premium members get unlimited streak freezes.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .background(AppTheme.cardBackground)
+        .cornerRadius(16)
+    }
+
+    private var formattedRefillDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: viewModel.freezeRefillDate)
+    }
+
     private var initials: String {
         if !fullName.isEmpty {
             let parts = fullName.split(separator: " ")

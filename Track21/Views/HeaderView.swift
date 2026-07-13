@@ -28,19 +28,39 @@ struct HeaderView: View {
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
 
-                if bestStreak > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.caption2)
-                        Text(bestStreak == 1 ? "1 day streak" : "\(bestStreak) day streak")
-                            .font(.caption)
-                            .fontWeight(.semibold)
+                if bestStreak > 0 || !viewModel.habits.isEmpty {
+                    HStack(spacing: 8) {
+                        if bestStreak > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flame.fill")
+                                    .font(.caption2)
+                                Text(bestStreak == 1 ? "1 day streak" : "\(bestStreak) day streak")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.18))
+                            .cornerRadius(20)
+                        }
+
+                        if !viewModel.habits.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "snowflake")
+                                    .font(.caption2)
+                                Text(viewModel.isPremium ? "Unlimited freezes" : "\(viewModel.freezesAvailable) freezes")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.18))
+                            .cornerRadius(20)
+                            .accessibilityLabel(viewModel.isPremium ? "Unlimited streak freezes" : "\(viewModel.freezesAvailable) streak freezes remaining")
+                        }
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.18))
-                    .cornerRadius(20)
                     .padding(.top, 4)
                 }
             }

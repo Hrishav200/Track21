@@ -12,7 +12,7 @@ private struct DayCompletion: Identifiable {
     let id = UUID()
     let date: Date
     let label: String
-    let completed: Bool
+    let status: HabitDateStatus
 }
 
 struct HabitWeeklyChart: View {
@@ -29,13 +29,29 @@ struct HabitWeeklyChart: View {
             return DayCompletion(
                 date: date,
                 label: formatter.string(from: date),
-                completed: habit.isCompleted(on: date)
+                status: habit.dateStatus(for: date)
             )
         }
     }
 
     private var habitColor: Color {
         Color(hex: habit.color)
+    }
+
+    private func barHeight(for status: HabitDateStatus) -> Double {
+        switch status {
+        case .completed: return 1
+        case .frozen: return 0.6
+        default: return 0.06
+        }
+    }
+
+    private func barColor(for status: HabitDateStatus) -> Color {
+        switch status {
+        case .completed: return habitColor
+        case .frozen: return AppTheme.frozen
+        default: return Color.gray.opacity(0.2)
+        }
     }
 
     var body: some View {
@@ -46,20 +62,28 @@ struct HabitWeeklyChart: View {
             Chart(days) { day in
                 BarMark(
                     x: .value("Day", day.label),
-                    y: .value("Completed", day.completed ? 1 : 0.06)
+                    y: .value("Completed", barHeight(for: day.status))
                 )
-                .foregroundStyle(day.completed ? habitColor : Color.gray.opacity(0.2))
+                .foregroundStyle(barColor(for: day.status))
                 .cornerRadius(6)
             }
             .chartYScale(domain: 0...1)
             .chartYAxis(.hidden)
             .frame(height: 140)
             .accessibilityLabel("Completion for the last 7 days")
-            .accessibilityValue(days.map { "\($0.label) \($0.completed ? "done" : "missed")" }.joined(separator: ", "))
+            .accessibilityValue(days.map { "\($0.label) \(accessibilityWord(for: $0.status))" }.joined(separator: ", "))
         }
         .padding()
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
+    }
+
+    private func accessibilityWord(for status: HabitDateStatus) -> String {
+        switch status {
+        case .completed: return "done"
+        case .frozen: return "frozen"
+        default: return "missed"
+        }
     }
 }
 

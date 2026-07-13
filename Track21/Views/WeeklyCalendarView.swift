@@ -44,6 +44,10 @@ struct WeeklyCalendarView: View {
                                     Image(systemName: "checkmark")
                                         .font(.caption.weight(.bold))
                                         .foregroundColor(.white)
+                                } else if let habit = habit, habit.isFrozen(on: date) {
+                                    Image(systemName: "snowflake")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundColor(.white)
                                 } else {
                                     Text(dayNumber(for: date))
                                         .font(.subheadline.weight(.semibold))
@@ -89,6 +93,8 @@ struct WeeklyCalendarView: View {
         switch status {
         case .completed:
             return AppTheme.primary
+        case .frozen:
+            return AppTheme.frozen
         case .missed:
             return AppTheme.missed
         case .future:
@@ -98,7 +104,9 @@ struct WeeklyCalendarView: View {
         }
     }
 
-    /// A day is tappable if it's within the habit period and not in the future
+    /// A day is tappable if it's within the habit period and not in the
+    /// future. Frozen days are locked — they're set automatically by the
+    /// streak-freeze feature, not user-editable.
     private func isTappable(date: Date) -> Bool {
         guard let habit = habit else { return false }
         let status = habit.dateStatus(for: date)
@@ -114,6 +122,8 @@ struct WeeklyCalendarView: View {
 
         switch status {
         case .completed:
+            return .white
+        case .frozen:
             return .white
         case .missed:
             return .white
