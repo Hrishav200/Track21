@@ -112,6 +112,63 @@ final class SmokeFlowUITests: XCTestCase {
     /// launch, so each test starts from a clean slate instead of piling up
     /// "Drink Water" habits left over from previous runs in this session.
     @MainActor
+    func testBuddyOnboardingAndChatTab() throws {
+        let app = launchApp(extraArguments: ["-uitest-fresh-buddy"])
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        let buddyNameField = app.textFields["Buddy name"]
+        XCTAssertTrue(buddyNameField.waitForExistence(timeout: 10))
+        buddyNameField.tap()
+        buddyNameField.typeText("Sam")
+        attach(app, name: "12-buddy-naming")
+
+        // iOS 26's first-run "continuous path" keyboard tutorial also has a
+        // "Continue" button in a separate window, so the label alone is
+        // ambiguous — the accessibility identifier disambiguates it.
+        app.buttons["buddyNamingContinue"].tap()
+
+        let buddyTab = app.buttons["Buddy"]
+        XCTAssertTrue(buddyTab.waitForExistence(timeout: 10))
+        buddyTab.tap()
+
+        XCTAssertTrue(app.navigationBars["Sam"].waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 0.6) // let the availability check settle before screenshotting
+        attach(app, name: "13-buddy-chat")
+
+        // On-device chat only exists where Foundation Models is actually
+        // available (iOS 26 + Apple Intelligence) — elsewhere this device
+        // sees the fallback message instead, which is already covered above.
+        let messageField = app.textFields["Buddy chat message"]
+        if messageField.waitForExistence(timeout: 3) {
+            messageField.tap()
+            messageField.typeText("I keep skipping my running habit")
+            app.buttons["Send message"].tap()
+
+            // Scoped to the chat scroll view specifically — the keyboard's
+            // QuickType suggestion bar also contains staticTexts, which
+            // otherwise satisfy a same-screen "any new text" predicate long
+            // before the model actually replies.
+            let newReply = app.scrollViews.staticTexts.matching(NSPredicate(
+                format: "label != %@ AND label != %@",
+                "Hey, I'm Sam. What's on your mind today?",
+                "I keep skipping my running habit"
+            ))
+            XCTAssertTrue(newReply.firstMatch.waitForExistence(timeout: 30))
+            attach(app, name: "14-buddy-chat-reply")
+
+            // Re-focus the field after a reply landed — this is where the
+            // keyboard's "Done" accessory button was seen floating over the
+            // input row instead of sitting in its own toolbar strip.
+            messageField.tap()
+            messageField.typeText("Thanks")
+            attach(app, name: "15-buddy-chat-keyboard-toolbar")
+        }
+    }
+
+    @MainActor
     private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-uitest-reset"] + extraArguments

@@ -1,0 +1,190 @@
+//
+//  BuddyChatView.swift
+//  Track21
+//
+//  Free-form chat with the user's on-device accountability buddy. Wrapped in
+//  an `if #available` split so the app's deployment target stays iOS 17 —
+//  only this tab requires iOS 26 + an Apple Intelligence-eligible device.
+//
+
+import SwiftUI
+
+struct BuddyChatMessage: Identifiable, Equatable {
+    let id = UUID()
+    let isFromUser: Bool
+    let text: String
+}
+
+struct BuddyChatView: View {
+    let buddyName: String
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if #available(iOS 26.0, *) {
+                    BuddyChatAvailableView(buddyName: buddyName)
+                } else {
+                    BuddyChatUnavailableView(buddyName: buddyName, reason: .unsupportedOS)
+                }
+            }
+            .navigationTitle(buddyName)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct BuddyChatAvailableView: View {
+    let buddyName: String
+
+    @State private var engine: BuddyChatEngine?
+    @State private var availability: BuddyAvailability = .modelNotReady
+    @State private var messages: [BuddyChatMessage] = []
+    @State private var inputText = ""
+    @State private var isThinking = false
+    @State private var inputFieldID = UUID()
+    @FocusState private var isInputFocused: Bool
+
+    var body: some View {
+        Group {
+            if availability == .available {
+                chatBody
+            } else {
+                BuddyChatUnavailableView(buddyName: buddyName, reason: availability)
+            }
+        }
+        .onAppear {
+            availability = BuddyChatEngine.currentAvailability
+            if availability == .available, engine == nil {
+                engine = BuddyChatEngine(buddyName: buddyName)
+                messages = [BuddyChatMessage(isFromUser: false, text: "Hey, I'm \(buddyName). What's on your mind today?")]
+            }
+        }
+    }
+
+    private var chatBody: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(messages) { message in
+                            BuddyChatBubble(message: message)
+                                .id(message.id)
+                        }
+                        if isThinking {
+                            HStack {
+                                ProgressView()
+                                    .padding(.leading, 4)
+                                Spacer()
+                            }
+                        }
+                    }
+                    .padding()
+                }
+                .scrollDismissesKeyboard(.immediately)
+                .onTapGesture { isInputFocused = false }
+                .onChange(of: messages) {
+                    if let lastId = messages.last?.id {
+                        withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
+                    }
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: 12) {
+                TextField("Message \(buddyName)...", text: $inputText, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .padding(10)
+                    .background(AppTheme.cardBackground)
+                    .cornerRadius(18)
+                    .accessibilityLabel("Buddy chat message")
+                    .lineLimit(1...4)
+                    .focused($isInputFocused)
+                    .id(inputFieldID)
+
+                Button(action: send) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : AppTheme.primary)
+                }
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isThinking)
+                .accessibilityLabel("Send message")
+            }
+            .padding()
+        }
+    }
+
+    private func send() {
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, let engine else { return }
+
+        messages.append(BuddyChatMessage(isFromUser: true, text: text))
+        inputText = ""
+        // Multiline TextField(axis: .vertical) can visually keep the old
+        // text after clearing the binding while still focused — forcing a
+        // fresh identity guarantees it actually clears on screen.
+        inputFieldID = UUID()
+        isInputFocused = true
+
+        if BuddyLogic.containsCrisisSignal(text) {
+            messages.append(BuddyChatMessage(isFromUser: false, text: BuddyLogic.crisisResponse))
+            return
+        }
+
+        isThinking = true
+        Task {
+            do {
+                let reply = try await engine.reply(to: text)
+                messages.append(BuddyChatMessage(isFromUser: false, text: reply))
+            } catch {
+                NSLog("BuddyChatEngine reply failed: %@", String(describing: error))
+                messages.append(BuddyChatMessage(isFromUser: false, text: "Sorry, I'm having trouble responding right now — try again in a moment."))
+            }
+            isThinking = false
+        }
+    }
+}
+
+private struct BuddyChatBubble: View {
+    let message: BuddyChatMessage
+
+    var body: some View {
+        HStack {
+            if message.isFromUser { Spacer(minLength: 40) }
+
+            Text(message.text)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(message.isFromUser ? AppTheme.primary : AppTheme.cardBackground)
+                .foregroundColor(message.isFromUser ? .white : .primary)
+                .cornerRadius(18)
+
+            if !message.isFromUser { Spacer(minLength: 40) }
+        }
+    }
+}
+
+private struct BuddyChatUnavailableView: View {
+    let buddyName: String
+    let reason: BuddyAvailability
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "moon.zzz")
+                .font(.system(size: 44))
+                .foregroundColor(.secondary)
+            Text("\(buddyName)\(reason.explanation)")
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel("Buddy chat unavailable")
+    }
+}
+
+#Preview {
+    BuddyChatView(buddyName: "Max")
+}

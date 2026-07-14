@@ -42,6 +42,14 @@ struct Track21App: App {
                 // clean slate instead of accumulating habits across runs.
                 if ProcessInfo.processInfo.arguments.contains("-uitest-reset") {
                     viewModel.clearData()
+                    BuddyService.shared.clearData()
+                    // Pre-name the buddy so the one-time naming screen
+                    // doesn't block every other UI test's path to the home
+                    // screen. Tests that specifically exercise onboarding
+                    // pass -uitest-fresh-buddy to skip this and see it.
+                    if !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-buddy") {
+                        BuddyService.shared.saveBuddyName("Buddy")
+                    }
                 }
 
                 // Seeds a habit with a mix of completed/frozen/missed days so

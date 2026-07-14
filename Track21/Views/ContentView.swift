@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var showingProfile = false
     @State private var showGuestBanner = true
     @State private var freezeToastNames: [String] = []
+    @State private var buddyService = BuddyService.shared
+    @State private var showBuddyNaming = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -71,10 +73,21 @@ struct ContentView: View {
 
                     StatsView(viewModel: viewModel)
                         .tag(1)
+
+                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                        .tag(2)
                 }
             }
 
             CustomTabBar(selectedTab: $selectedTab, showingAddHabit: $showingAddHabit)
+
+            // Hidden on the Buddy tab — it would otherwise float directly
+            // on top of the chat's own message input row, which sits right
+            // above the tab bar with no gap to share.
+            if selectedTab != 2 {
+                FloatingAddButton(action: { showingAddHabit = true })
+                    .padding(.bottom, 78)
+            }
         }
         .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showingAddHabit) {
@@ -87,7 +100,17 @@ struct ContentView: View {
                 viewModel: viewModel
             )
         }
+        .fullScreenCover(isPresented: $showBuddyNaming) {
+            BuddyNamingView(onContinue: { name in
+                buddyService.saveBuddyName(name)
+                showBuddyNaming = false
+            })
+        }
         .task {
+            if !buddyService.hasNamedBuddy {
+                showBuddyNaming = true
+            }
+
             await NotificationService.shared.requestAuthorizationIfNeeded()
 
             let protectedHabits = viewModel.protectStreaksIfNeeded()
@@ -98,6 +121,8 @@ struct ContentView: View {
                     withAnimation { freezeToastNames = [] }
                 }
             }
+
+            buddyService.scheduleNudgeIfNeeded(for: viewModel.habits)
 
             // Auto-dismiss guest banner after 5 seconds
             if authService.isGuest {
