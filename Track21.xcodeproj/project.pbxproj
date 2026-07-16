@@ -516,7 +516,7 @@
 					"$(inherited)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourbaecodes.trackHabit;
 				PRODUCT_NAME = "Track21 – 21 Day Habit Builder";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -582,7 +582,7 @@
 					"$(inherited)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourbaecodes.trackHabit;
 				PRODUCT_NAME = "Track21 – 21 Day Habit Builder";
 				REGISTER_APP_GROUPS = YES;

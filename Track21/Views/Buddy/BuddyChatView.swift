@@ -78,16 +78,23 @@ private struct BuddyChatAvailableView: View {
                                 Spacer()
                             }
                         }
+
+                        // A dedicated, always-empty anchor rather than
+                        // scrolling to the newest message bubble directly —
+                        // scrolling to a bubble whose multiline text hasn't
+                        // finished laying out yet in the LazyVStack can land
+                        // short, leaving it clipped under the nav bar.
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
                     .padding()
                 }
                 .scrollDismissesKeyboard(.immediately)
                 .onTapGesture { isInputFocused = false }
-                .onChange(of: messages) {
-                    if let lastId = messages.last?.id {
-                        withAnimation { proxy.scrollTo(lastId, anchor: .bottom) }
-                    }
-                }
+                .onChange(of: messages) { scrollToBottom(using: proxy) }
+                .onChange(of: isThinking) { scrollToBottom(using: proxy) }
+                .onChange(of: isInputFocused) { scrollToBottom(using: proxy) }
             }
 
             Divider()
@@ -112,6 +119,18 @@ private struct BuddyChatAvailableView: View {
                 .accessibilityLabel("Send message")
             }
             .padding()
+        }
+    }
+
+    /// Deferred a tick so the just-added message/keyboard-avoidance layout
+    /// has actually settled before scrolling — scrolling within the same
+    /// run loop pass as the content change is what left the newest reply
+    /// clipped under the nav bar.
+    private func scrollToBottom(using proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
         }
     }
 
