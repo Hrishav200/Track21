@@ -8,6 +8,10 @@
 import SwiftUI
 
 struct LoginView: View {
+    private enum Field {
+        case email, fullName, password
+    }
+
     @Bindable var authService: AuthService
     @State private var email = ""
     @State private var password = ""
@@ -17,25 +21,41 @@ struct LoginView: View {
     @State private var resetEmail = ""
     @State private var resetMessage: String?
     @State private var isResetting = false
-    
+    @FocusState private var focusedField: Field?
+
     var body: some View {
         NavigationView {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
                 backgroundBlobs
 
-                ScrollView {
-                    VStack(spacing: 32) {
-                        heroSection
-                        valuePropsRow
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 32) {
+                            heroSection
+                            valuePropsRow
 
-                        formSection
-                            .padding(.horizontal, 24)
+                            formSection
+                                .padding(.horizontal, 24)
 
-                        trustFooter
+                            trustFooter
+                        }
+                        .padding(.top, 48)
+                        .padding(.bottom, 32)
                     }
-                    .padding(.top, 48)
-                    .padding(.bottom, 32)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: focusedField) {
+                        guard let focusedField else { return }
+                        // Deferred a tick so the keyboard's safe-area inset
+                        // has actually applied before scrolling — scrolling
+                        // in the same run-loop pass as the focus change can
+                        // land short and leave the field under the keyboard.
+                        DispatchQueue.main.async {
+                            withAnimation {
+                                proxy.scrollTo(focusedField, anchor: .center)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -161,14 +181,20 @@ struct LoginView: View {
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
+                .focused($focusedField, equals: .email)
+                .id(Field.email)
 
             if isSignUp {
                 TextField("Full Name", text: $fullName)
                     .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .fullName)
+                    .id(Field.fullName)
             }
 
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
+                .focused($focusedField, equals: .password)
+                .id(Field.password)
 
             if let error = authService.errorMessage {
                 Text(error)

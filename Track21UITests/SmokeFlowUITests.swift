@@ -169,6 +169,23 @@ final class SmokeFlowUITests: XCTestCase {
     }
 
     @MainActor
+    func testLoginFormScrollsFocusedFieldAboveKeyboard() throws {
+        let app = launchApp()
+
+        let signUpToggle = app.buttons["Don't have an account? Sign Up"]
+        XCTAssertTrue(signUpToggle.waitForExistence(timeout: 10))
+        signUpToggle.tap()
+
+        let passwordField = app.secureTextFields["Password"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
+        passwordField.tap()
+        Thread.sleep(forTimeInterval: 0.6) // let the scroll-to-focused-field animation settle
+        attach(app, name: "16-signup-password-focused")
+
+        XCTAssertTrue(passwordField.isHittable, "Focused password field should be scrolled clear of the keyboard")
+    }
+
+    @MainActor
     private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["-uitest-reset"] + extraArguments
