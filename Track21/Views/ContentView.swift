@@ -13,82 +13,127 @@ struct ContentView: View {
     @Bindable var viewModel: HabitViewModel
     @Bindable var profileService: ProfileService
     @State private var selectedTab = 0
+    @State private var lastRealTab = 0
     @State private var showingAddHabit = false
     @State private var showingProfile = false
     @State private var showGuestBanner = true
     @State private var freezeToastNames: [String] = []
+    @State private var celebratingAchievements: [Achievement] = []
     @State private var buddyService = BuddyService.shared
     @State private var showBuddyNaming = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                // Guest mode warning banner (auto-dismisses after 5s)
-                if authService.isGuest && showGuestBanner {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.icloud")
-                            .font(.subheadline)
-                        Text("Guest mode — data is not synced. Sign in to back up your habits.")
-                            .font(.caption)
-                        Spacer()
-                        Button {
-                            withAnimation { showGuestBanner = false }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.caption2.weight(.bold))
-                        }
+        VStack(spacing: 0) {
+            // Guest mode warning banner (auto-dismisses after 5s)
+            if authService.isGuest && showGuestBanner {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.icloud")
+                        .font(.subheadline)
+                    Text("Guest mode — data is not synced. Sign in to back up your habits.")
+                        .font(.caption)
+                    Spacer()
+                    Button {
+                        withAnimation { showGuestBanner = false }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.orange)
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-
-                // Streak freeze auto-consumption toast (see protectStreaksIfNeeded())
-                if !freezeToastNames.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "snowflake")
-                            .font(.subheadline)
-                        Text(freezeToastMessage)
-                            .font(.caption)
-                        Spacer()
-                        Button {
-                            withAnimation { freezeToastNames = [] }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.caption2.weight(.bold))
-                        }
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(AppTheme.frozen)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                TabView(selection: $selectedTab) {
-                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
-                        .tag(0)
-
-                    StatsView(viewModel: viewModel)
-                        .tag(1)
-
-                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
-                        .tag(2)
-                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.orange)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            CustomTabBar(selectedTab: $selectedTab, showingAddHabit: $showingAddHabit)
+            // Streak freeze auto-consumption toast (see protectStreaksIfNeeded())
+            if !freezeToastNames.isEmpty {
+                HStack(spacing: 8) {
+                    Image(systemName: "snowflake")
+                        .font(.subheadline)
+                    Text(freezeToastMessage)
+                        .font(.caption)
+                    Spacer()
+                    Button {
+                        withAnimation { freezeToastNames = [] }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
+                    }
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(AppTheme.frozen)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
-            // Hidden on the Buddy tab — it would otherwise float directly
-            // on top of the chat's own message input row, which sits right
-            // above the tab bar with no gap to share.
-            if selectedTab != 2 {
-                DraggableFloatingAddButton(action: { showingAddHabit = true })
+            // Achievement-unlock celebration toast (see checkForNewAchievements())
+            if !celebratingAchievements.isEmpty {
+                HStack(spacing: 8) {
+                    Text(celebratingAchievements.map(\.emoji).joined())
+                        .font(.subheadline)
+                    Text(achievementToastMessage)
+                        .font(.caption)
+                    Spacer()
+                    Button {
+                        withAnimation { celebratingAchievements = [] }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
+                    }
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.purple)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            TabView(selection: $selectedTab) {
+                HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                    .tag(0)
+                    .tabItem { Label("Home", systemImage: "house.fill") }
+
+                StatsView(viewModel: viewModel)
+                    .tag(1)
+                    .tabItem { Label("Statistics", systemImage: "chart.bar.fill") }
+
+                // Not a real destination — selecting it opens the Add
+                // Habit sheet and immediately snaps back to whichever
+                // tab was showing, so it acts as an action button that
+                // still renders with the tab bar's own Liquid Glass
+                // material instead of a separate floating button.
+                Color.clear
+                    .tag(2)
+                    .tabItem { Label("Add", systemImage: "plus") }
+
+                BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                    .tag(3)
+                    .tabItem { Label("Buddy", systemImage: "bubble.left.and.bubble.right.fill") }
+
+                AchievementsView(viewModel: viewModel)
+                    .tag(4)
+                    .tabItem { Label("Achievements", systemImage: "trophy.fill") }
+            }
+            .onChange(of: selectedTab) { _, newValue in
+                if newValue == 2 {
+                    showingAddHabit = true
+                    selectedTab = lastRealTab
+                } else {
+                    lastRealTab = newValue
+                }
+            }
+            .onChange(of: viewModel.recentlyUnlockedAchievements) { _, newly in
+                guard !newly.isEmpty else { return }
+                withAnimation { celebratingAchievements = newly }
+                viewModel.recentlyUnlockedAchievements = []
+                Task {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    withAnimation { celebratingAchievements = [] }
+                }
             }
         }
-        .edgesIgnoringSafeArea(.bottom)
         .sheet(isPresented: $showingAddHabit) {
             AddHabitView(viewModel: viewModel, authService: authService)
         }
@@ -122,6 +167,7 @@ struct ContentView: View {
             }
 
             buddyService.scheduleNudgeIfNeeded(for: viewModel.habits)
+            viewModel.checkForNewAchievements()
 
             // Auto-dismiss guest banner after 5 seconds
             if authService.isGuest {
@@ -177,5 +223,11 @@ struct ContentView: View {
         return freezeToastNames.count == 1
             ? "Streak freeze used for \(names) — your streak is safe!"
             : "Streak freeze used for \(names) — your streaks are safe!"
+    }
+
+    private var achievementToastMessage: String {
+        celebratingAchievements.count == 1
+            ? "Achievement unlocked: \(celebratingAchievements[0].title)!"
+            : "\(celebratingAchievements.count) achievements unlocked!"
     }
 }

@@ -26,6 +26,11 @@ class HabitViewModel {
     var freezeRefillDate: Date { StreakFreezeService.shared.refillDate }
     var isPremium: Bool { StreakFreezeService.shared.isPremium }
 
+    /// Set whenever a habit toggle or streak-freeze protection just crossed
+    /// a badge into unlocked — ContentView observes this to show a
+    /// celebration toast, then clears it back to empty.
+    var recentlyUnlockedAchievements: [Achievement] = []
+
     init() {
         loadHabits()
         loadUserName()
@@ -77,6 +82,7 @@ class HabitViewModel {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
             habits[index].toggleCompletion(for: date)
             saveHabits()
+            checkForNewAchievements()
 
             // Trigger sync if user is logged in
             if let userId = habits[index].userId {
@@ -85,6 +91,18 @@ class HabitViewModel {
                 }
             }
         }
+    }
+
+    /// Recomputes badge state and stashes any newly-unlocked ones for
+    /// ContentView to celebrate. Safe to call often — no-ops when nothing
+    /// new crossed into unlocked.
+    @discardableResult
+    func checkForNewAchievements() -> [Achievement] {
+        let newly = AchievementService.shared.refresh(habits: habits).newlyUnlocked
+        if !newly.isEmpty {
+            recentlyUnlockedAchievements = newly
+        }
+        return newly
     }
     
     func updateHabit(_ habit: Habit) {
@@ -123,6 +141,7 @@ class HabitViewModel {
         let protected = StreakFreezeService.shared.protectStreaks(for: habits)
         if !protected.isEmpty {
             saveHabits()
+            checkForNewAchievements()
         }
         return protected
     }
@@ -135,8 +154,10 @@ class HabitViewModel {
     func clearData() {
         habits = []
         userName = "Friend"
+        recentlyUnlockedAchievements = []
         UserDefaults.standard.removeObject(forKey: saveKey)
         UserDefaults.standard.removeObject(forKey: userNameKey)
+        AchievementService.shared.clearData()
     }
     
     private func saveHabits() {

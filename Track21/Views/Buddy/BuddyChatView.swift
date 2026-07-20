@@ -139,6 +139,7 @@ private struct BuddyChatAvailableView: View {
         guard !text.isEmpty, let engine else { return }
 
         messages.append(BuddyChatMessage(isFromUser: true, text: text))
+        BuddyService.shared.recordChatActivity()
         inputText = ""
         // Multiline TextField(axis: .vertical) can visually keep the old
         // text after clearing the binding while still focused — forcing a

@@ -161,6 +161,16 @@ final class Habit: Codable, Identifiable {
         return Double(totalCompletions) / Double(elapsedDaysCount)
     }
 
+    /// Total number of days protected by a streak freeze within the 21-day
+    /// window. A day is either completed, frozen, or missed — never more
+    /// than one — so `totalCompletions + totalFrozen` is the count of days
+    /// that didn't break the streak.
+    var totalFrozen: Int {
+        let start = Calendar.current.startOfDay(for: startDate)
+        let end = Calendar.current.startOfDay(for: endDate)
+        return frozenDates.filter { $0 >= start && $0 <= end }.count
+    }
+
     /// Consecutive completed-or-frozen days counting back from today. A day
     /// that hasn't ended yet (i.e. today, if not yet completed) doesn't
     /// break the streak. A frozen day counts as continuing the streak
