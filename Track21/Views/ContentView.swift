@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var celebratingAchievements: [Achievement] = []
     @State private var buddyService = BuddyService.shared
     @State private var showBuddyNaming = false
+    @AppStorage("Track21HasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var showOnboarding = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -144,6 +146,15 @@ struct ContentView: View {
                 viewModel: viewModel
             )
         }
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView(onFinish: {
+                hasSeenOnboarding = true
+                showOnboarding = false
+                if !buddyService.hasNamedBuddy {
+                    showBuddyNaming = true
+                }
+            })
+        }
         .fullScreenCover(isPresented: $showBuddyNaming) {
             BuddyNamingView(onContinue: { name in
                 buddyService.saveBuddyName(name)
@@ -151,7 +162,9 @@ struct ContentView: View {
             })
         }
         .task {
-            if !buddyService.hasNamedBuddy {
+            if !hasSeenOnboarding {
+                showOnboarding = true
+            } else if !buddyService.hasNamedBuddy {
                 showBuddyNaming = true
             }
 

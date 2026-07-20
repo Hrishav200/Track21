@@ -69,6 +69,12 @@ struct DebugMenuView: View {
                     }
                 }
 
+                Section("App Intro") {
+                    Button("Reset Intro Carousel") {
+                        UserDefaults.standard.set(false, forKey: "Track21HasSeenOnboarding")
+                    }
+                }
+
                 if let userId = authService.currentUser?.id {
                     Section("Sync") {
                         Button("Force Sync Now") {
@@ -104,9 +110,10 @@ struct DebugMenuView: View {
                     viewModel.clearData()
                     buddyService.clearData()
                     freezeService.debugResetWallet()
+                    UserDefaults.standard.set(false, forKey: "Track21HasSeenOnboarding")
                 }
             } message: {
-                Text("Clears all habits, your buddy's name, and resets the freeze wallet. This can't be undone.")
+                Text("Clears all habits, your buddy's name, the intro carousel, and resets the freeze wallet. This can't be undone.")
             }
         }
     }

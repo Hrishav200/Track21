@@ -50,6 +50,13 @@ struct Track21App: App {
                     if !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-buddy") {
                         BuddyService.shared.saveBuddyName("Buddy")
                     }
+                    // Same idea for the app-intro carousel — mark it seen so
+                    // it doesn't block every other test's path to the home
+                    // screen. Tests exercising it pass -uitest-fresh-onboarding,
+                    // which explicitly clears the flag instead (a stale
+                    // "seen" value could otherwise persist between runs).
+                    let sawOnboardingBefore = !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-onboarding")
+                    UserDefaults.standard.set(sawOnboardingBefore, forKey: "Track21HasSeenOnboarding")
                 }
 
                 // Seeds a habit with a mix of completed/frozen/missed days so
