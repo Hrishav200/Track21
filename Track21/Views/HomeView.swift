@@ -12,7 +12,6 @@ struct HomeView: View {
     var authService: AuthService
     @State private var selectedHabit: Habit?
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
-    @State private var showingAddHabit = false
     var onProfileTap: () -> Void = {}
 
     var body: some View {
@@ -29,22 +28,6 @@ struct HomeView: View {
                         selectedHabit: $selectedHabit,
                         selectedDate: selectedDate
                     )
-
-                    // Add habit button
-                    Button(action: { showingAddHabit = true }) {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add New Habit")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(AppTheme.primary)
-                        .cornerRadius(12)
-                    }
-                    .accessibilityLabel("Add new habit")
-                    .padding(.top, 8)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 100)
@@ -52,9 +35,6 @@ struct HomeView: View {
         }
         .background(AppTheme.background)
         .edgesIgnoringSafeArea(.top)
-        .sheet(isPresented: $showingAddHabit) {
-            AddHabitView(viewModel: viewModel, authService: authService)
-        }
         .onChange(of: viewModel.habits.count) {
             refreshSelectedHabit()
         }

@@ -85,8 +85,7 @@ struct ContentView: View {
             // on top of the chat's own message input row, which sits right
             // above the tab bar with no gap to share.
             if selectedTab != 2 {
-                FloatingAddButton(action: { showingAddHabit = true })
-                    .padding(.bottom, 78)
+                DraggableFloatingAddButton(action: { showingAddHabit = true })
             }
         }
         .edgesIgnoringSafeArea(.bottom)

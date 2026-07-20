@@ -15,10 +15,14 @@ final class StreakFreezeService {
     static let shared = StreakFreezeService()
 
     private let walletKey = "Track21FreezeWallet"
+    private let premiumKey = "Track21DebugIsPremium"
 
     private(set) var wallet: FreezeWallet
-    /// No real StoreKit/IAP wired up yet — always free tier for now.
-    var isPremium: Bool = false
+    /// No real StoreKit/IAP wired up yet — settable only from the debug
+    /// menu today, but persisted so a toggle survives relaunches.
+    var isPremium: Bool = false {
+        didSet { UserDefaults.standard.set(isPremium, forKey: premiumKey) }
+    }
 
     var freezesAvailable: Int { wallet.freezesAvailable }
     var refillDate: Date { wallet.refillDate }
@@ -33,6 +37,7 @@ final class StreakFreezeService {
                 refillDate: StreakFreezeLogic.nextRefillDate(from: Date())
             )
         }
+        isPremium = UserDefaults.standard.bool(forKey: premiumKey)
     }
 
     /// Call once per app foreground. Auto-protects any habit that missed
@@ -50,6 +55,11 @@ final class StreakFreezeService {
 
         for (habit, date) in protectedPairs {
             habit.frozenDates.append(date)
+            // Without this, the freeze never gets uploaded (SyncService only
+            // pushes .pending habits) and the next sync pulls back the
+            // server's stale copy, silently erasing the freeze it just applied.
+            habit.syncStatus = .pending
+            habit.updatedAt = Date()
         }
 
         if newWallet != wallet {
@@ -65,4 +75,20 @@ final class StreakFreezeService {
             UserDefaults.standard.set(data, forKey: walletKey)
         }
     }
+
+    #if DEBUG
+    /// Compiled out of release builds — only reachable from DebugMenuView.
+    func debugAdjustFreezes(by delta: Int) {
+        wallet.freezesAvailable = max(0, wallet.freezesAvailable + delta)
+        persist()
+    }
+
+    func debugResetWallet() {
+        wallet = FreezeWallet(
+            freezesAvailable: StreakFreezeLogic.freeMonthlyAllowance,
+            refillDate: StreakFreezeLogic.nextRefillDate(from: Date())
+        )
+        persist()
+    }
+    #endif
 }

@@ -24,9 +24,8 @@ final class SmokeFlowUITests: XCTestCase {
         XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
         continueAsGuest.tap()
 
-        // Both the tab bar "+" and the in-list "Add New Habit" button share the
-        // accessibilityLabel "Add new habit" (one label, two buttons) — the tab
-        // bar one is uniquely identified by its SF Symbol name "plus".
+        // The floating "+" is the only add-habit entry point now; matched by
+        // its SF Symbol name "plus" rather than its accessibilityLabel.
         let addHabitButton = app.buttons["plus"]
         XCTAssertTrue(addHabitButton.waitForExistence(timeout: 10))
         attach(app, name: "02-home-empty")

@@ -62,8 +62,11 @@ enum StreakFreezeLogic {
     /// like afterward. Doesn't mutate anything — the caller (StreakFreezeService)
     /// applies the results and persists.
     ///
-    /// Habits are considered in array order; if the wallet can't cover every
-    /// habit that needs protection on the same day, earlier habits win.
+    /// One freeze protects the whole day, not one habit — every eligible
+    /// habit that needs protection shares a single freeze from the wallet.
+    /// Charging per habit would let one rough day (multiple habits missed
+    /// at once) burn through the entire monthly allowance in one shot,
+    /// which isn't what "a streak freeze" means to most users.
     static func protect(
         habits: [Habit],
         wallet: FreezeWallet,
@@ -72,17 +75,19 @@ enum StreakFreezeLogic {
         calendar: Calendar = .current
     ) -> (protected: [(habit: Habit, date: Date)], wallet: FreezeWallet) {
         var wallet = refilled(wallet, referenceDate: today, calendar: calendar)
-        var results: [(habit: Habit, date: Date)] = []
 
-        for habit in habits {
-            guard isPremium || wallet.freezesAvailable > 0 else { break }
-            guard let date = dateNeedingProtection(for: habit, today: today, calendar: calendar) else { continue }
-            results.append((habit, date))
-            if !isPremium {
-                wallet.freezesAvailable -= 1
-            }
+        let eligible = habits.compactMap { habit -> (habit: Habit, date: Date)? in
+            guard let date = dateNeedingProtection(for: habit, today: today, calendar: calendar) else { return nil }
+            return (habit, date)
         }
 
-        return (results, wallet)
+        guard !eligible.isEmpty else { return ([], wallet) }
+        guard isPremium || wallet.freezesAvailable > 0 else { return ([], wallet) }
+
+        if !isPremium {
+            wallet.freezesAvailable -= 1
+        }
+
+        return (eligible, wallet)
     }
 }

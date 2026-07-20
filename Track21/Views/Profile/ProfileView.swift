@@ -23,6 +23,9 @@ struct ProfileView: View {
     @State private var isDeletingAccount = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    #if DEBUG
+    @State private var showingDebugMenu = false
+    #endif
 
     var body: some View {
         NavigationView {
@@ -131,6 +134,18 @@ struct ProfileView: View {
                         freezeWalletCard
                             .padding(.horizontal, 24)
 
+                        #if DEBUG
+                        Button(action: { showingDebugMenu = true }) {
+                            HStack {
+                                Image(systemName: "hammer.fill")
+                                Text("Debug Menu")
+                            }
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 4)
+                        #endif
+
                         // Privacy policy link
                         Link(destination: URL(string: "https://hrishav200.github.io/Track21/privacy/")!) {
                             HStack {
@@ -195,6 +210,11 @@ struct ProfileView: View {
             } message: {
                 Text("This will permanently delete your account and all your data. This action cannot be undone.")
             }
+            #if DEBUG
+            .sheet(isPresented: $showingDebugMenu) {
+                DebugMenuView(viewModel: viewModel, authService: authService)
+            }
+            #endif
             .task {
                 await loadProfile()
             }

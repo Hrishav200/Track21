@@ -105,7 +105,7 @@ struct StreakFreezeTests {
 
     // MARK: - protect
 
-    @Test func protectConsumesOneFreezePerEligibleHabit() {
+    @Test func oneFreezeProtectsEveryHabitMissedTheSameDay() {
         let habitA = Habit(name: "A", goal: "goal", color: "A78BFA", startDate: daysAgo(10))
         let habitB = Habit(name: "B", goal: "goal", color: "FFD700", startDate: daysAgo(10))
         for offset in 2...10 {
@@ -113,7 +113,9 @@ struct StreakFreezeTests {
             habitB.completedDates.append(daysAgo(offset))
         }
 
-        let wallet = FreezeWallet(freezesAvailable: 2, refillDate: daysAgo(-30))
+        // Only 1 freeze in the wallet, but both habits missed the same day —
+        // a single freeze should cover the whole day, not just one habit.
+        let wallet = FreezeWallet(freezesAvailable: 1, refillDate: daysAgo(-30))
         let (protectedPairs, newWallet) = StreakFreezeLogic.protect(
             habits: [habitA, habitB], wallet: wallet, isPremium: false, today: Date(), calendar: calendar
         )
@@ -122,7 +124,7 @@ struct StreakFreezeTests {
         #expect(newWallet.freezesAvailable == 0)
     }
 
-    @Test func protectStopsWhenWalletRunsOut() {
+    @Test func protectDoesNothingWhenWalletIsEmpty() {
         let habitA = Habit(name: "A", goal: "goal", color: "A78BFA", startDate: daysAgo(10))
         let habitB = Habit(name: "B", goal: "goal", color: "FFD700", startDate: daysAgo(10))
         for offset in 2...10 {
@@ -130,13 +132,12 @@ struct StreakFreezeTests {
             habitB.completedDates.append(daysAgo(offset))
         }
 
-        let wallet = FreezeWallet(freezesAvailable: 1, refillDate: daysAgo(-30))
+        let wallet = FreezeWallet(freezesAvailable: 0, refillDate: daysAgo(-30))
         let (protectedPairs, newWallet) = StreakFreezeLogic.protect(
             habits: [habitA, habitB], wallet: wallet, isPremium: false, today: Date(), calendar: calendar
         )
 
-        #expect(protectedPairs.count == 1)
-        #expect(protectedPairs.first?.habit.name == "A")
+        #expect(protectedPairs.isEmpty)
         #expect(newWallet.freezesAvailable == 0)
     }
 

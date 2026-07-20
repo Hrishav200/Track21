@@ -71,12 +71,22 @@ class SyncService {
     
     private func mergeHabits(local: [Habit], remote: [Habit]) -> [Habit] {
         var merged: [UUID: Habit] = [:]
-        
+
+        // frozenDates has no column on the server yet — HabitDTO doesn't
+        // carry it, so every remote habit decodes with frozenDates == [].
+        // Remember each habit's local value up front so it can be restored
+        // after merging, no matter which side "wins" below. Otherwise a
+        // sync round-trip silently erases an applied streak freeze the
+        // moment the habit's syncStatus flips back to .synced and the
+        // server's bumped updated_at makes the (freeze-less) remote copy
+        // look newer.
+        let localFrozenDates = Dictionary(uniqueKeysWithValues: local.map { ($0.id, $0.frozenDates) })
+
         // Add all remote habits
         for habit in remote {
             merged[habit.id] = habit
         }
-        
+
         // Merge local habits (local wins if updated_at is newer or pending)
         for localHabit in local {
             if let remoteHabit = merged[localHabit.id] {
@@ -90,7 +100,11 @@ class SyncService {
                 merged[localHabit.id] = localHabit
             }
         }
-        
+
+        for (id, dates) in localFrozenDates {
+            merged[id]?.frozenDates = dates
+        }
+
         return Array(merged.values)
     }
     
