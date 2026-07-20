@@ -28,6 +28,12 @@ struct HeaderView: View {
             .safeAreaInsets.top ?? 47
     }
 
+    /// Extra breathing room below the status bar/Dynamic Island, on top of
+    /// `topInset` — the single place that controls this gap, instead of
+    /// repeating (or worse, a bare Spacer sitting outside the green
+    /// background, which would show gray through the gap instead of green).
+    private let headerContentTopSpacing: CGFloat = 32
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Only the background bleeds under the status bar/Dynamic
@@ -38,7 +44,7 @@ struct HeaderView: View {
                 .ignoresSafeArea(edges: .top)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Hi \(viewModel.userName)!")
+                Text("Hi \(viewModel.userName)")
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
@@ -85,7 +91,7 @@ struct HeaderView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
-            .padding(.top, topInset + 16)
+            .padding(.top, topInset + headerContentTopSpacing)
             .padding(.bottom, 80)
 
             // Profile button
@@ -101,10 +107,10 @@ struct HeaderView: View {
             }
             .accessibilityLabel("Profile")
             .accessibilityHint("Opens your profile settings")
-            .padding(.top, topInset + 16)
+            .padding(.top, topInset + headerContentTopSpacing)
             .padding(.trailing, 20)
         }
-        .frame(height: 180)
+        .frame(height: 196)
     }
 
     private var initials: String {
