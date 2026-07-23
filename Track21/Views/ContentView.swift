@@ -180,7 +180,7 @@ struct ContentView: View {
         if #available(iOS 26.0, *) {
             TabView(selection: $selectedTab) {
                 Tab("Home", systemImage: "house.fill", value: 0) {
-                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
                 }
                 Tab("Statistics", systemImage: "chart.bar.fill", value: 1) {
                     StatsView(viewModel: viewModel)
@@ -206,7 +206,7 @@ struct ContentView: View {
         } else {
             ZStack(alignment: .bottomTrailing) {
                 TabView(selection: $selectedTab) {
-                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
                         .tag(0)
                         .tabItem { Label("Home", systemImage: "house.fill") }
 

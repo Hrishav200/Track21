@@ -11,6 +11,7 @@ struct DayProgressCard: View {
     let habit: Habit?
     let habits: [Habit]
     @Binding var selectedDate: Date
+    var onTap: () -> Void = {}
     @State private var weekOffset: Int = 0
 
     private var isToday: Bool {
@@ -121,6 +122,8 @@ struct DayProgressCard: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 
     // MARK: - Summary header (no habit selected)
@@ -172,6 +175,8 @@ struct DayProgressCard: View {
                 }
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
     }
 
     // MARK: - Week navigation row

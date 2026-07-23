@@ -33,8 +33,8 @@ struct ProfileView: View {
                 premiumSection
                 freezeSection
                 aboutSection
-                signOutSection
                 moreSection
+                signOutSection
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Profile")

@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var selectedHabit: Habit?
     @State private var selectedDate = Calendar.current.startOfDay(for: Date())
     var onProfileTap: () -> Void = {}
+    var onNavigateToStats: () -> Void = {}
 
     var body: some View {
         ScrollView {
@@ -20,7 +21,7 @@ struct HomeView: View {
                 HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
 
                 VStack(spacing: 16) {
-                    DayProgressCard(habit: selectedHabit, habits: viewModel.habits, selectedDate: $selectedDate)
+                    DayProgressCard(habit: selectedHabit, habits: viewModel.habits, selectedDate: $selectedDate, onTap: onNavigateToStats)
 
                     MyHabitsSection(
                         viewModel: viewModel,
