@@ -44,6 +44,13 @@ private struct BuddyChatAvailableView: View {
     @State private var isThinking = false
     @State private var inputFieldID = UUID()
     @FocusState private var isInputFocused: Bool
+    @State private var buddyService = BuddyService.shared
+    @State private var premiumService = PremiumService.shared
+    @State private var showingPaywall = false
+
+    private var remainingMessages: Int? {
+        BuddyChatUsageLogic.remainingMessages(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium)
+    }
 
     var body: some View {
         Group {
@@ -59,6 +66,9 @@ private struct BuddyChatAvailableView: View {
                 engine = BuddyChatEngine(buddyName: buddyName)
                 messages = [BuddyChatMessage(isFromUser: false, text: "Hey, I'm \(buddyName). What's on your mind today?")]
             }
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(trigger: .chatCapped)
         }
     }
 
@@ -99,6 +109,21 @@ private struct BuddyChatAvailableView: View {
 
             Divider()
 
+            if let remaining = remainingMessages, remaining <= 2 {
+                Button {
+                    showingPaywall = true
+                } label: {
+                    Text(remaining == 0
+                         ? "You're out of messages for today — go Pro for unlimited chat"
+                         : "\(remaining) message\(remaining == 1 ? "" : "s") left today — go Pro for unlimited chat")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.top, 6)
+                }
+            }
+
             HStack(spacing: 12) {
                 TextField("Message \(buddyName)...", text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -138,8 +163,13 @@ private struct BuddyChatAvailableView: View {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let engine else { return }
 
+        guard BuddyChatUsageLogic.canSendMessage(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium) else {
+            showingPaywall = true
+            return
+        }
+
         messages.append(BuddyChatMessage(isFromUser: true, text: text))
-        BuddyService.shared.recordChatActivity()
+        buddyService.recordChatActivity()
         inputText = ""
         // Multiline TextField(axis: .vertical) can visually keep the old
         // text after clearing the binding while still focused — forcing a

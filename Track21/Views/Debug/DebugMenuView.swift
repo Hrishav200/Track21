@@ -9,6 +9,7 @@
 
 #if DEBUG
 import SwiftUI
+import StoreKit
 internal import Auth
 
 struct DebugMenuView: View {
@@ -16,17 +17,62 @@ struct DebugMenuView: View {
     var authService: AuthService
 
     @Bindable private var freezeService = StreakFreezeService.shared
+    @Bindable private var premiumService = PremiumService.shared
     @State private var buddyService = BuddyService.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var showingResetConfirm = false
     @State private var syncMessage: String?
+    @State private var purchaseInFlight: String?
 
     var body: some View {
         NavigationView {
             Form {
                 Section("Premium") {
-                    Toggle("Premium Enabled", isOn: $freezeService.isPremium)
+                    Toggle("Debug Override (force Pro)", isOn: $premiumService.debugOverride)
+                    HStack {
+                        Text("Real Entitlement")
+                        Spacer()
+                        Text(premiumService.hasActiveEntitlement ? "Active" : "None")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Section("Track21 Pro (StoreKit)") {
+                    if premiumService.products.isEmpty {
+                        Text(premiumService.isLoadingProducts ? "Loading products…" : "No products loaded.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(premiumService.products) { product in
+                            Button {
+                                Task {
+                                    purchaseInFlight = product.id
+                                    _ = try? await premiumService.purchase(product)
+                                    purchaseInFlight = nil
+                                }
+                            } label: {
+                                HStack {
+                                    Text(product.displayName)
+                                    Spacer()
+                                    if purchaseInFlight == product.id {
+                                        ProgressView()
+                                    } else {
+                                        Text(product.displayPrice)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .disabled(purchaseInFlight != nil)
+                        }
+                    }
+                    Button("Restore Purchases") {
+                        Task { try? await premiumService.restorePurchases() }
+                    }
+                    if let error = premiumService.purchaseError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
 
                 Section("Streak Freeze Wallet") {
@@ -110,6 +156,7 @@ struct DebugMenuView: View {
                     viewModel.clearData()
                     buddyService.clearData()
                     freezeService.debugResetWallet()
+                    premiumService.debugOverride = false
                     UserDefaults.standard.set(false, forKey: "Track21HasSeenOnboarding")
                 }
             } message: {

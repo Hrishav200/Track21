@@ -20,6 +20,8 @@ final class BuddyService {
     private let lastNudgeDateKey = "Track21BuddyLastNudgeDate"
     private let nudgeIdentifier = "buddy-nudge"
     private let chatDaysKey = "Track21BuddyChatDays"
+    private let dailyMessageCountKey = "Track21BuddyDailyMessageCount"
+    private let dailyMessageDateKey = "Track21BuddyDailyMessageDate"
     private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -31,11 +33,21 @@ final class BuddyService {
     /// Check-in" badges; chat content itself is never persisted.
     private(set) var chatDays: Set<String> = []
 
+    /// Messages sent since midnight — the free tier's daily cap, enforced
+    /// by BuddyChatUsageLogic. Resets automatically the first time
+    /// recordChatActivity is called on a new calendar day.
+    private(set) var messagesSentToday: Int = 0
+
     private var center: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
     private init() {
         buddyName = UserDefaults.standard.string(forKey: buddyNameKey)
         chatDays = Set(UserDefaults.standard.stringArray(forKey: chatDaysKey) ?? [])
+
+        if let storedDate = UserDefaults.standard.object(forKey: dailyMessageDateKey) as? Date,
+           Calendar.current.isDateInToday(storedDate) {
+            messagesSentToday = UserDefaults.standard.integer(forKey: dailyMessageCountKey)
+        }
     }
 
     var hasNamedBuddy: Bool { buddyName != nil }
@@ -43,9 +55,19 @@ final class BuddyService {
 
     func recordChatActivity(on date: Date = Date()) {
         let key = Self.dayFormatter.string(from: date)
-        guard !chatDays.contains(key) else { return }
-        chatDays.insert(key)
-        UserDefaults.standard.set(Array(chatDays), forKey: chatDaysKey)
+        if !chatDays.contains(key) {
+            chatDays.insert(key)
+            UserDefaults.standard.set(Array(chatDays), forKey: chatDaysKey)
+        }
+
+        let storedDate = UserDefaults.standard.object(forKey: dailyMessageDateKey) as? Date
+        if let storedDate, Calendar.current.isDate(storedDate, inSameDayAs: date) {
+            messagesSentToday += 1
+        } else {
+            messagesSentToday = 1
+            UserDefaults.standard.set(date, forKey: dailyMessageDateKey)
+        }
+        UserDefaults.standard.set(messagesSentToday, forKey: dailyMessageCountKey)
     }
 
     func saveBuddyName(_ name: String) {
@@ -84,9 +106,12 @@ final class BuddyService {
     func clearData() {
         buddyName = nil
         chatDays = []
+        messagesSentToday = 0
         UserDefaults.standard.removeObject(forKey: buddyNameKey)
         UserDefaults.standard.removeObject(forKey: lastNudgeDateKey)
         UserDefaults.standard.removeObject(forKey: chatDaysKey)
+        UserDefaults.standard.removeObject(forKey: dailyMessageCountKey)
+        UserDefaults.standard.removeObject(forKey: dailyMessageDateKey)
         center.removePendingNotificationRequests(withIdentifiers: [nudgeIdentifier])
     }
 }

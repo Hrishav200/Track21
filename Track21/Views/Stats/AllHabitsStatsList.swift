@@ -10,6 +10,7 @@ import SwiftUI
 struct AllHabitsStatsList: View {
     let habits: [Habit]
     @Binding var selectedHabitID: UUID?
+    var isPremium: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -61,13 +62,19 @@ struct AllHabitsStatsList: View {
 
                 Spacer()
 
-                HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                    Text("\(habit.currentStreak)")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                if !habit.isActive && !isPremium {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                        Text("\(habit.currentStreak)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
                 }
             }
             .padding(.vertical, 6)

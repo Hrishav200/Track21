@@ -185,7 +185,13 @@ enum AchievementLogic {
     private static func hasBounceBack(_ habit: Habit, today: Date, calendar: Calendar) -> Bool {
         guard habit.currentStreak(asOf: today) >= 3 else { return false }
         let start = calendar.startOfDay(for: habit.startDate)
-        let end = calendar.startOfDay(for: min(today, habit.endDate))
+        let todayStart = calendar.startOfDay(for: today)
+        // Never scan today itself — Habit.dateStatus(for:) reports .missed
+        // for a today that hasn't been completed yet (it's only .future for
+        // days strictly after today), since today genuinely isn't done. A
+        // day still in progress isn't a "missed" day for this check.
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: todayStart) else { return false }
+        let end = min(yesterday, calendar.startOfDay(for: habit.endDate))
         guard end >= start else { return false }
 
         var day = start

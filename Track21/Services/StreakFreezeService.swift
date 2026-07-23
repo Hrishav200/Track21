@@ -15,14 +15,12 @@ final class StreakFreezeService {
     static let shared = StreakFreezeService()
 
     private let walletKey = "Track21FreezeWallet"
-    private let premiumKey = "Track21DebugIsPremium"
 
     private(set) var wallet: FreezeWallet
-    /// No real StoreKit/IAP wired up yet — settable only from the debug
-    /// menu today, but persisted so a toggle survives relaunches.
-    var isPremium: Bool = false {
-        didSet { UserDefaults.standard.set(isPremium, forKey: premiumKey) }
-    }
+    /// Backed by PremiumService (StoreKit entitlement, or the DEBUG-only
+    /// override) — this is just a convenience passthrough so callers that
+    /// already depend on StreakFreezeService don't need a second import.
+    var isPremium: Bool { PremiumService.shared.isPremium }
 
     var freezesAvailable: Int { wallet.freezesAvailable }
     var refillDate: Date { wallet.refillDate }
@@ -37,7 +35,6 @@ final class StreakFreezeService {
                 refillDate: StreakFreezeLogic.nextRefillDate(from: Date())
             )
         }
-        isPremium = UserDefaults.standard.bool(forKey: premiumKey)
     }
 
     /// Call once per app foreground. Auto-protects any habit that missed

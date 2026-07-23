@@ -10,12 +10,21 @@ import SwiftUI
 struct StatsView: View {
     @Bindable var viewModel: HabitViewModel
     @State private var selectedHabitID: UUID?
+    @State private var showingPaywall = false
 
     private var selectedHabit: Habit? {
         if let id = selectedHabitID, let habit = viewModel.habits.first(where: { $0.id == id }) {
             return habit
         }
         return viewModel.habits.first
+    }
+
+    /// Free users get full stats for whatever's currently in progress —
+    /// once a habit's 21-day cycle ends, its detailed history becomes a
+    /// Pro feature rather than disappearing entirely (it still shows up in
+    /// the picker/list, just locked).
+    private func isLocked(_ habit: Habit) -> Bool {
+        !habit.isActive && !viewModel.isPremium
     }
 
     var body: some View {
@@ -46,19 +55,56 @@ struct StatsView: View {
                 }
 
                 if let habit = selectedHabit {
-                    StatsOverviewCards(habit: habit)
-                    HabitWeeklyChart(habit: habit)
-                    HabitJourneyGrid(habit: habit)
+                    if isLocked(habit) {
+                        lockedHistoryCard
+                    } else {
+                        StatsOverviewCards(habit: habit)
+                        HabitWeeklyChart(habit: habit)
+                        HabitJourneyGrid(habit: habit)
+                    }
                 }
 
                 if viewModel.habits.count > 1 {
-                    AllHabitsStatsList(habits: viewModel.habits, selectedHabitID: $selectedHabitID)
+                    AllHabitsStatsList(habits: viewModel.habits, selectedHabitID: $selectedHabitID, isPremium: viewModel.isPremium)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 60)
             .padding(.bottom, 100)
         }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(trigger: .lockedStats)
+        }
+    }
+
+    private var lockedHistoryCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 32))
+                .foregroundColor(.secondary)
+
+            Text("This cycle has ended")
+                .font(.headline)
+
+            Text("Full stats for completed cycles are a Track21 Pro feature. Go Pro to see every day's detail, not just what's in progress.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+
+            Button("Go Pro") { showingPaywall = true }
+                .font(.headline)
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(AppTheme.primary)
+                .cornerRadius(12)
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .background(AppTheme.cardBackground)
+        .cornerRadius(16)
     }
 
     private var header: some View {

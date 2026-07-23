@@ -23,6 +23,8 @@ struct ProfileView: View {
     @State private var isDeletingAccount = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    @State private var showingPaywall = false
+    @State private var paywallTrigger: PaywallView.Trigger = .general
     #if DEBUG
     @State private var showingDebugMenu = false
     #endif
@@ -130,6 +132,12 @@ struct ProfileView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
 
+                        // Upgrade card (hidden once already Pro)
+                        if !viewModel.isPremium {
+                            upgradeCard
+                                .padding(.horizontal, 24)
+                        }
+
                         // Streak freeze wallet
                         freezeWalletCard
                             .padding(.horizontal, 24)
@@ -215,10 +223,51 @@ struct ProfileView: View {
                 DebugMenuView(viewModel: viewModel, authService: authService)
             }
             #endif
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView(trigger: paywallTrigger)
+            }
             .task {
                 await loadProfile()
             }
         }
+    }
+
+    private var upgradeCard: some View {
+        Button(action: {
+            paywallTrigger = .general
+            showingPaywall = true
+        }) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "crown.fill")
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Go Pro")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text("Unlimited freezes, unlimited chat, full history")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .foregroundColor(.white)
+            .padding(16)
+            .background(AppTheme.primary)
+            .cornerRadius(16)
+        }
+        .accessibilityLabel("Go Pro")
+        .accessibilityHint("Opens the Track21 Pro upgrade screen")
     }
     
     private var freezeWalletCard: some View {
@@ -244,9 +293,19 @@ struct ProfileView: View {
                     Text("\(viewModel.freezesAvailable) remaining · Refills \(formattedRefillDate)")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("Premium members get unlimited streak freezes.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                    if viewModel.freezesAvailable == 0 {
+                        Button("Go Pro for unlimited freezes") {
+                            paywallTrigger = .freezesExhausted
+                            showingPaywall = true
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(AppTheme.primary)
+                    } else {
+                        Text("Premium members get unlimited streak freezes.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
 
