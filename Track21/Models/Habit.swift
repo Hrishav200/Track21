@@ -30,7 +30,15 @@ final class Habit: Codable, Identifiable {
     /// are used. `nil` means no reminder is scheduled. Local-only — there's
     /// no `reminder_time` column in Supabase, so this doesn't sync across
     /// devices (local notifications wouldn't carry over anyway).
+    ///
+    /// Mutually exclusive with `reminderIntervalMinutes` — at most one is
+    /// ever set; the UI enforces that by clearing the other when switching
+    /// reminder modes.
     var reminderTime: Date?
+    /// Repeats a reminder every N minutes throughout the day instead of
+    /// once at a fixed time (e.g. "every 4 hours"). `nil` means this mode
+    /// isn't active. Local-only, same reasoning as `reminderTime`.
+    var reminderIntervalMinutes: Int?
     /// Days protected by a streak freeze — missed, but don't break the
     /// streak. Set by StreakFreezeService, not by the user directly.
     /// Local-only, same reasoning as reminderTime.
@@ -49,6 +57,7 @@ final class Habit: Codable, Identifiable {
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
         case reminderTime = "reminder_time"
+        case reminderIntervalMinutes = "reminder_interval_minutes"
         case frozenDates = "frozen_dates"
     }
 
@@ -66,6 +75,7 @@ final class Habit: Codable, Identifiable {
         updatedAt: Date? = nil,
         deletedAt: Date? = nil,
         reminderTime: Date? = nil,
+        reminderIntervalMinutes: Int? = nil,
         frozenDates: [Date] = []
     ) {
         self.id = id
@@ -80,6 +90,7 @@ final class Habit: Codable, Identifiable {
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
         self.reminderTime = reminderTime
+        self.reminderIntervalMinutes = reminderIntervalMinutes
         self.frozenDates = frozenDates.map { Calendar.current.startOfDay(for: $0) }
     }
 
@@ -98,6 +109,7 @@ final class Habit: Codable, Identifiable {
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
         reminderTime = try container.decodeIfPresent(Date.self, forKey: .reminderTime)
+        reminderIntervalMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderIntervalMinutes)
         frozenDates = try container.decodeIfPresent([Date].self, forKey: .frozenDates) ?? []
     }
 
@@ -115,6 +127,7 @@ final class Habit: Codable, Identifiable {
         try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
         try container.encodeIfPresent(reminderTime, forKey: .reminderTime)
+        try container.encodeIfPresent(reminderIntervalMinutes, forKey: .reminderIntervalMinutes)
         try container.encode(frozenDates, forKey: .frozenDates)
     }
     

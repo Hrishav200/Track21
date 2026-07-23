@@ -8,6 +8,14 @@
 import Foundation
 import UserNotifications
 
+/// Which of a habit's two (mutually exclusive) reminder fields is active —
+/// shared between AddHabitView/EditHabitView so both offer the same choice.
+enum ReminderMode: String, CaseIterable, Identifiable {
+    case daily = "Daily"
+    case interval = "Custom Interval"
+    var id: String { rawValue }
+}
+
 /// Schedules and cancels the daily local-notification reminders tied to a
 /// habit's `reminderTime`. One repeating notification per habit, keyed by
 /// habit id, so re-scheduling (edit) or cancelling (delete/disable) only
@@ -42,19 +50,27 @@ final class NotificationService: NSObject {
         "habit-reminder-\(habit.id.uuidString)"
     }
 
-    /// Builds the daily-repeating notification request for a habit's
-    /// `reminderTime`, or `nil` if no reminder is set.
+    /// Builds the reminder notification request for a habit — a fixed
+    /// daily time (`reminderTime`) or a repeating interval throughout the
+    /// day (`reminderIntervalMinutes`), whichever is set. `nil` if neither
+    /// is set. `reminderIntervalMinutes` takes priority if somehow both
+    /// ended up set, since the UI treats them as mutually exclusive modes.
     static func makeReminderRequest(for habit: Habit) -> UNNotificationRequest? {
-        guard let reminderTime = habit.reminderTime else { return nil }
-
         let content = UNMutableNotificationContent()
         content.title = "Time for \(habit.name)!"
         content.body = "Goal: \(habit.goal) — keep your streak going."
         content.sound = .default
 
+        if let minutes = habit.reminderIntervalMinutes {
+            // Apple requires >= 60s for a repeating interval trigger.
+            let seconds = max(60, minutes * 60)
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(seconds), repeats: true)
+            return UNNotificationRequest(identifier: reminderIdentifier(for: habit), content: content, trigger: trigger)
+        }
+
+        guard let reminderTime = habit.reminderTime else { return nil }
         let components = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-
         return UNNotificationRequest(identifier: reminderIdentifier(for: habit), content: content, trigger: trigger)
     }
 

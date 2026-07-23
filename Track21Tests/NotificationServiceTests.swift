@@ -35,6 +35,27 @@ struct NotificationServiceTests {
         #expect(trigger.dateComponents.minute == 30)
     }
 
+    @Test func requestBuildsARepeatingIntervalTriggerWhenIntervalIsSet() throws {
+        let habit = Habit(name: "Stretch", goal: "5 min", color: "5DD167")
+        habit.reminderIntervalMinutes = 240 // every 4 hours
+
+        let request = try #require(NotificationService.makeReminderRequest(for: habit))
+        let trigger = try #require(request.trigger as? UNTimeIntervalNotificationTrigger)
+
+        #expect(trigger.repeats == true)
+        #expect(trigger.timeInterval == 240 * 60)
+    }
+
+    @Test func intervalTriggerIsClampedToTheMinimumOneMinuteAppleAllows() throws {
+        let habit = Habit(name: "Posture Check", goal: "sit up straight", color: "FF6B9D")
+        habit.reminderIntervalMinutes = 0
+
+        let request = try #require(NotificationService.makeReminderRequest(for: habit))
+        let trigger = try #require(request.trigger as? UNTimeIntervalNotificationTrigger)
+
+        #expect(trigger.timeInterval == 60)
+    }
+
     @Test func noReminderTimeBuildsNoRequest() {
         let habit = Habit(name: "Read", goal: "20 pages", color: "A78BFA")
         habit.reminderTime = nil

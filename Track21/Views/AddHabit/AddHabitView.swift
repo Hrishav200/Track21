@@ -16,9 +16,13 @@ struct AddHabitView: View {
     @State private var name = ""
     @State private var goal = ""
     @State private var selectedColor = "FFB6A3"
+    @State private var customColor = Color(hex: "A78BFA")
     @State private var startDate = Date()
     @State private var reminderEnabled = false
+    @State private var reminderMode: ReminderMode = .daily
     @State private var reminderTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+    @State private var intervalHours = 4
+    @State private var intervalMinutes = 0
 
     let colors = ["FFB6A3", "6BB6FF", "5DD167", "FFD700", "FF6B9D", "A78BFA"]
     let colorNames = ["Coral", "Blue", "Green", "Gold", "Pink", "Purple"]
@@ -54,7 +58,7 @@ struct AddHabitView: View {
                         addHabit()
                     }
                     .fontWeight(.semibold)
-                    .disabled(name.isEmpty || goal.isEmpty)
+                    .disabled(name.isEmpty || goal.isEmpty || isIntervalReminderEmpty)
                 }
             }
         }
@@ -97,16 +101,39 @@ struct AddHabitView: View {
 
     private var colorCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionLabel("COLOR")
+            sectionLabel("BACKGROUND COLOR")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
                 ForEach(Array(colors.enumerated()), id: \.offset) { index, color in
                     colorSwatch(color: color, name: colorNames[index])
                 }
+                customColorSwatch
             }
         }
         .padding(16)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
+    }
+
+    /// The 6 presets are quick shortcuts — this opens the full system color
+    /// picker (spectrum, sliders, eyedropper, saved colors) for anything
+    /// else, converting the pick to the same hex format habit.color stores.
+    private var customColorSwatch: some View {
+        let isSelected = !colors.contains(selectedColor)
+        return ColorPicker("Custom color", selection: $customColor, supportsOpacity: false)
+            .labelsHidden()
+            .frame(width: 40, height: 40)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(isSelected ? Color.primary.opacity(0.55) : Color.clear, lineWidth: 2)
+                    .padding(-3)
+            )
+            .onChange(of: customColor) { _, newValue in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    selectedColor = newValue.toHex()
+                }
+            }
+            .accessibilityLabel("Custom color")
     }
 
     private func colorSwatch(color: String, name: String) -> some View {
@@ -152,7 +179,7 @@ struct AddHabitView: View {
         VStack(alignment: .leading, spacing: 14) {
             Toggle(isOn: $reminderEnabled.animation(.easeInOut(duration: 0.15))) {
                 VStack(alignment: .leading, spacing: 2) {
-                    sectionLabel("DAILY REMINDER")
+                    sectionLabel("REMINDER")
                     Text("Get a notification to log this habit")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -161,12 +188,58 @@ struct AddHabitView: View {
             .tint(AppTheme.primary)
 
             if reminderEnabled {
-                DatePicker("Reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                Picker("Reminder type", selection: $reminderMode) {
+                    ForEach(ReminderMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if reminderMode == .daily {
+                    DatePicker("Reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                } else {
+                    intervalPicker
+                }
             }
         }
         .padding(16)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
+    }
+
+    private var intervalPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Remind me every")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 0) {
+                Picker("Hours", selection: $intervalHours) {
+                    ForEach(0..<24) { hour in
+                        Text("\(hour) hr").tag(hour)
+                    }
+                }
+                .pickerStyle(.wheel)
+
+                Picker("Minutes", selection: $intervalMinutes) {
+                    ForEach(0..<60) { minute in
+                        Text("\(minute) min").tag(minute)
+                    }
+                }
+                .pickerStyle(.wheel)
+            }
+            .frame(height: 120)
+
+            if isIntervalReminderEmpty {
+                Text("Pick at least 1 minute.")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+        }
+    }
+
+    private var isIntervalReminderEmpty: Bool {
+        reminderEnabled && reminderMode == .interval && intervalHours == 0 && intervalMinutes == 0
     }
 
     // MARK: - Challenge info
@@ -217,7 +290,10 @@ struct AddHabitView: View {
             startDate: startDate,
             userId: authService.currentUser?.id,
             syncStatus: .pending,
-            reminderTime: reminderEnabled ? reminderTime : nil
+            reminderTime: (reminderEnabled && reminderMode == .daily) ? reminderTime : nil,
+            reminderIntervalMinutes: (reminderEnabled && reminderMode == .interval)
+                ? intervalHours * 60 + intervalMinutes
+                : nil
         )
         viewModel.addHabit(habit)
 
