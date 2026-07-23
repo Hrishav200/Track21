@@ -35,6 +35,11 @@ struct HomeView: View {
         }
         .background(AppTheme.background)
         .edgesIgnoringSafeArea(.top)
+        .onTapGesture {
+            // Tapping a habit row consumes its own tap gesture first, so
+            // this only ever fires for taps elsewhere on the screen.
+            withAnimation(.easeInOut(duration: 0.2)) { selectedHabit = nil }
+        }
         .onChange(of: viewModel.habits.count) {
             refreshSelectedHabit()
         }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 internal import Auth
 
 struct ContentView: View {
@@ -92,49 +93,16 @@ struct ContentView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            TabView(selection: $selectedTab) {
-                HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
-                    .tag(0)
-                    .tabItem { Label("Home", systemImage: "house.fill") }
-
-                StatsView(viewModel: viewModel)
-                    .tag(1)
-                    .tabItem { Label("Statistics", systemImage: "chart.bar.fill") }
-
-                // Not a real destination — selecting it opens the Add
-                // Habit sheet and immediately snaps back to whichever
-                // tab was showing, so it acts as an action button that
-                // still renders with the tab bar's own Liquid Glass
-                // material instead of a separate floating button.
-                Color.clear
-                    .tag(2)
-                    .tabItem { Label("Add", systemImage: "plus") }
-
-                BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
-                    .tag(3)
-                    .tabItem { Label("Buddy", systemImage: "bubble.left.and.bubble.right.fill") }
-
-                AchievementsView(viewModel: viewModel)
-                    .tag(4)
-                    .tabItem { Label("Achievements", systemImage: "trophy.fill") }
-            }
-            .onChange(of: selectedTab) { _, newValue in
-                if newValue == 2 {
-                    showingAddHabit = true
-                    selectedTab = lastRealTab
-                } else {
-                    lastRealTab = newValue
+            tabs
+                .onChange(of: viewModel.recentlyUnlockedAchievements) { _, newly in
+                    guard !newly.isEmpty else { return }
+                    withAnimation { celebratingAchievements = newly }
+                    viewModel.recentlyUnlockedAchievements = []
+                    Task {
+                        try? await Task.sleep(nanoseconds: 5_000_000_000)
+                        withAnimation { celebratingAchievements = [] }
+                    }
                 }
-            }
-            .onChange(of: viewModel.recentlyUnlockedAchievements) { _, newly in
-                guard !newly.isEmpty else { return }
-                withAnimation { celebratingAchievements = newly }
-                viewModel.recentlyUnlockedAchievements = []
-                Task {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                    withAnimation { celebratingAchievements = [] }
-                }
-            }
         }
         .sheet(isPresented: $showingAddHabit) {
             AddHabitView(viewModel: viewModel, authService: authService)
@@ -198,7 +166,70 @@ struct ContentView: View {
             }
         }
     }
-    
+
+    /// iOS 26's `Tab(role: .search)` is the only way to get a compact tab
+    /// group with a separate, detached round accessory next to it (the
+    /// same layout Photos uses for its search button) — a plain tab bar
+    /// always stretches to fill the width regardless of item count, so
+    /// there's no room beside it for a manually-overlaid button. The "Add"
+    /// tab never actually shows a destination: selecting it immediately
+    /// opens the Add Habit sheet and snaps back to whichever tab was
+    /// showing, same trick as the previous "Add" tab used.
+    @ViewBuilder
+    private var tabs: some View {
+        if #available(iOS 26.0, *) {
+            TabView(selection: $selectedTab) {
+                Tab("Home", systemImage: "house.fill", value: 0) {
+                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                }
+                Tab("Statistics", systemImage: "chart.bar.fill", value: 1) {
+                    StatsView(viewModel: viewModel)
+                }
+                Tab("Buddy", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
+                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                }
+                Tab("Achievements", systemImage: "trophy.fill", value: 3) {
+                    AchievementsView(viewModel: viewModel)
+                }
+                Tab("Add", systemImage: "plus", value: 4, role: .search) {
+                    Color.clear
+                }
+            }
+            .onChange(of: selectedTab) { _, newValue in
+                if newValue == 4 {
+                    showingAddHabit = true
+                    selectedTab = lastRealTab
+                } else {
+                    lastRealTab = newValue
+                }
+            }
+        } else {
+            ZStack(alignment: .bottomTrailing) {
+                TabView(selection: $selectedTab) {
+                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true })
+                        .tag(0)
+                        .tabItem { Label("Home", systemImage: "house.fill") }
+
+                    StatsView(viewModel: viewModel)
+                        .tag(1)
+                        .tabItem { Label("Statistics", systemImage: "chart.bar.fill") }
+
+                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                        .tag(2)
+                        .tabItem { Label("Buddy", systemImage: "bubble.left.and.bubble.right.fill") }
+
+                    AchievementsView(viewModel: viewModel)
+                        .tag(3)
+                        .tabItem { Label("Achievements", systemImage: "trophy.fill") }
+                }
+
+                FloatingAddButton(action: { showingAddHabit = true })
+                    .padding(.trailing, 20)
+                    .padding(.bottom, bottomSafeAreaInset)
+            }
+        }
+    }
+
     private func loadUserProfile() async {
         guard let userId = authService.currentUser?.id else { return }
 
@@ -242,5 +273,47 @@ struct ContentView: View {
         celebratingAchievements.count == 1
             ? "Achievement unlocked: \(celebratingAchievements[0].title)!"
             : "\(celebratingAchievements.count) achievements unlocked!"
+    }
+
+    /// Read straight from the window rather than a GeometryReader, matching
+    /// HeaderView's approach — keeps this correct regardless of what any
+    /// ancestor view does with safe areas.
+    private var bottomSafeAreaInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 34
+    }
+}
+
+/// The "+" action button, detached from the tab bar into its own floating
+/// group — same Liquid Glass material (iOS 26+), tinted with the brand
+/// color, with a solid-color fallback for older OS versions.
+private struct FloatingAddButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "plus")
+                .font(.title2.weight(.semibold))
+                .foregroundColor(.white)
+                .frame(width: 56, height: 56)
+                .modifier(FloatingAddButtonBackground())
+        }
+        .accessibilityLabel("Add new habit")
+    }
+}
+
+private struct FloatingAddButtonBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.tint(AppTheme.primary).interactive(), in: .circle)
+        } else {
+            content
+                .background(AppTheme.primary)
+                .clipShape(Circle())
+                .shadow(color: AppTheme.primary.opacity(0.45), radius: 12, x: 0, y: 6)
+        }
     }
 }

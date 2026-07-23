@@ -257,9 +257,14 @@ struct DayProgressCard: View {
         let target = calendar.startOfDay(for: date)
         let active = activeHabits(on: date)
         let completed = active.filter { $0.isCompleted(on: date) }.count
+        let frozen = active.filter { $0.isFrozen(on: date) }.count
 
         if target <= today && !active.isEmpty && completed == active.count && active.count > 0 {
             Image(systemName: "checkmark")
+                .font(.caption.weight(.bold))
+                .foregroundColor(.white)
+        } else if target <= today && !active.isEmpty && frozen > 0 && completed + frozen == active.count {
+            Image(systemName: "snowflake")
                 .font(.caption.weight(.bold))
                 .foregroundColor(.white)
         } else {
@@ -304,6 +309,13 @@ struct DayProgressCard: View {
 
         let completed = active.filter { $0.isCompleted(on: date) }.count
         if completed == active.count { return AppTheme.primary }
+
+        // Every active habit that wasn't completed was protected by a
+        // streak freeze — the day is safe, not "missed", so it reads as
+        // frozen rather than amber.
+        let frozen = active.filter { $0.isFrozen(on: date) }.count
+        if frozen > 0 && completed + frozen == active.count { return AppTheme.frozen }
+
         if completed > 0 { return AppTheme.missed }
         return Color.gray.opacity(0.25)
     }
@@ -319,7 +331,8 @@ struct DayProgressCard: View {
         if active.isEmpty { return .gray.opacity(0.5) }
 
         let completed = active.filter { $0.isCompleted(on: date) }.count
-        return (completed > 0) ? .white : .gray
+        let frozen = active.filter { $0.isFrozen(on: date) }.count
+        return (completed > 0 || frozen > 0) ? .white : .gray
     }
 
     private func isSummaryTappable(date: Date) -> Bool {
