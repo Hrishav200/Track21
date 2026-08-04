@@ -182,7 +182,7 @@ struct ContentView: View {
                 Tab("Home", systemImage: "house.fill", value: 0) {
                     HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
                 }
-                Tab("Statistics", systemImage: "chart.bar.fill", value: 1) {
+                Tab("Stats", systemImage: "chart.bar.fill", value: 1) {
                     StatsView(viewModel: viewModel)
                 }
                 Tab("Buddy", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
@@ -212,7 +212,7 @@ struct ContentView: View {
 
                     StatsView(viewModel: viewModel)
                         .tag(1)
-                        .tabItem { Label("Statistics", systemImage: "chart.bar.fill") }
+                        .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
 
                     BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
                         .tag(2)

@@ -12,11 +12,11 @@ struct StatsView: View {
     @State private var selectedHabitID: UUID?
     @State private var showingPaywall = false
 
+    /// `nil` when nothing's explicitly picked — that's not "no selection
+    /// yet," it's the deliberate "All" state shown by the overview below.
     private var selectedHabit: Habit? {
-        if let id = selectedHabitID, let habit = viewModel.habits.first(where: { $0.id == id }) {
-            return habit
-        }
-        return viewModel.habits.first
+        guard let id = selectedHabitID else { return nil }
+        return viewModel.habits.first(where: { $0.id == id })
     }
 
     /// Free users get full stats for whatever's currently in progress —
@@ -39,7 +39,12 @@ struct StatsView: View {
             }
         }
         .onAppear {
-            if selectedHabitID == nil {
+            // With exactly one habit, "All" and "this habit" show the same
+            // thing but the single-habit view is strictly more detailed
+            // (weekly chart, 21-day grid) — so skip straight to it. With
+            // 0 or 2+ habits, leave selection nil: 0 hits the empty state,
+            // 2+ starts on the overview.
+            if selectedHabitID == nil, viewModel.habits.count == 1 {
                 selectedHabitID = viewModel.habits.first?.id
             }
         }
@@ -62,6 +67,9 @@ struct StatsView: View {
                         HabitWeeklyChart(habit: habit)
                         HabitJourneyGrid(habit: habit)
                     }
+                } else {
+                    OverallStatsCards(habits: viewModel.habits)
+                    OverallCompletionChart(habits: viewModel.habits)
                 }
 
                 if viewModel.habits.count > 1 {
@@ -109,7 +117,7 @@ struct StatsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Statistics")
+            Text("Stats")
                 .font(.largeTitle)
                 .fontWeight(.bold)
             Text("Your habit journey at a glance")
