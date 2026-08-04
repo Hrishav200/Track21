@@ -20,6 +20,71 @@ struct AchievementLogicTests {
             .first { $0.id == "bounce_back" }?.isUnlocked ?? false
     }
 
+    private func perfectWeek(in habits: [Habit]) -> Bool {
+        AchievementLogic.evaluate(habits: habits, chatDayCount: 0)
+            .first { $0.id == "perfect_week" }?.isUnlocked ?? false
+    }
+
+    // MARK: - Perfect Week
+
+    /// Regression: a habit started today that only had *today* to be
+    /// completed was unlocking Perfect Week off a single day, because the
+    /// other 6 days (before the habit existed) were skipped as "not active"
+    /// instead of failing the check.
+    @Test func perfectWeekDoesNotTriggerForABrandNewHabitCompletedOnce() {
+        let habit = Habit(name: "Read", goal: "20 pages", color: "A78BFA", startDate: daysAgo(0))
+        habit.completedDates.append(daysAgo(0))
+
+        #expect(perfectWeek(in: [habit]) == false)
+    }
+
+    /// Same bug, slightly older habit: 3 days of real history is still
+    /// short of the 7 the achievement promises.
+    @Test func perfectWeekDoesNotTriggerForAHabitYoungerThanSevenDays() {
+        let habit = Habit(name: "Read", goal: "20 pages", color: "A78BFA", startDate: daysAgo(2))
+        for offset in 0...2 {
+            habit.completedDates.append(daysAgo(offset))
+        }
+
+        #expect(perfectWeek(in: [habit]) == false)
+    }
+
+    @Test func perfectWeekTriggersOnceAllSevenDaysAreCompletedOrFrozen() {
+        let habit = Habit(name: "Read", goal: "20 pages", color: "A78BFA", startDate: daysAgo(6))
+        habit.frozenDates.append(daysAgo(6))
+        for offset in 0...5 {
+            habit.completedDates.append(daysAgo(offset))
+        }
+
+        #expect(perfectWeek(in: [habit]) == true)
+    }
+
+    @Test func perfectWeekFailsIfAnyOfTheSevenDaysWasMissed() {
+        let habit = Habit(name: "Read", goal: "20 pages", color: "A78BFA", startDate: daysAgo(6))
+        // daysAgo(6) missed, unprotected.
+        for offset in 0...5 {
+            habit.completedDates.append(daysAgo(offset))
+        }
+
+        #expect(perfectWeek(in: [habit]) == false)
+    }
+
+    /// A second habit added mid-week shouldn't retroactively require itself
+    /// on days before it existed — only the older habit needs to be clean
+    /// on those earlier days.
+    @Test func perfectWeekOnlyRequiresHabitsThatExistedOnAGivenDay() {
+        let older = Habit(name: "Read", goal: "20 pages", color: "A78BFA", startDate: daysAgo(6))
+        let newer = Habit(name: "Stretch", goal: "10 min", color: "5DD167", startDate: daysAgo(2))
+        for offset in 0...6 {
+            older.completedDates.append(daysAgo(offset))
+        }
+        for offset in 0...2 {
+            newer.completedDates.append(daysAgo(offset))
+        }
+
+        #expect(perfectWeek(in: [older, newer]) == true)
+    }
+
     // MARK: - Bounce Back
 
     /// Regression: today isn't over yet, so Habit.dateStatus(for:) reports

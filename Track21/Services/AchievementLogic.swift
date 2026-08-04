@@ -161,22 +161,26 @@ enum AchievementLogic {
     private static func isPerfectWeek(habits: [Habit], today: Date, calendar: Calendar) -> Bool {
         guard !habits.isEmpty else { return false }
         let todayStart = calendar.startOfDay(for: today)
-        var sawActiveDay = false
 
         for offset in 0..<7 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: todayStart) else { return false }
             let activeThatDay = habits.filter {
                 day >= calendar.startOfDay(for: $0.startDate) && day <= calendar.startOfDay(for: $0.endDate)
             }
-            guard !activeThatDay.isEmpty else { continue }
-            sawActiveDay = true
+            // A day with no active habit yet means the habit(s) haven't
+            // existed for a full 7-day window. Previously this `continue`d
+            // past the day instead of failing it, so a habit started today
+            // and completed once would trivially satisfy "7 days straight"
+            // — the other 6 days were silently skipped as "not active" and
+            // never actually checked.
+            guard !activeThatDay.isEmpty else { return false }
             let allGood = activeThatDay.allSatisfy {
                 let status = $0.dateStatus(for: day)
                 return status == .completed || status == .frozen
             }
             guard allGood else { return false }
         }
-        return sawActiveDay
+        return true
     }
 
     /// True if the habit currently has at least a 3-day streak, but also
