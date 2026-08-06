@@ -9,12 +9,6 @@
 
 import SwiftUI
 
-struct BuddyChatMessage: Identifiable, Equatable {
-    let id = UUID()
-    let isFromUser: Bool
-    let text: String
-}
-
 struct BuddyChatView: View {
     let buddyName: String
 
@@ -39,7 +33,6 @@ private struct BuddyChatAvailableView: View {
 
     @State private var engine: BuddyChatEngine?
     @State private var availability: BuddyAvailability = .modelNotReady
-    @State private var messages: [BuddyChatMessage] = []
     @State private var inputText = ""
     @State private var isThinking = false
     @State private var inputFieldID = UUID()
@@ -47,9 +40,23 @@ private struct BuddyChatAvailableView: View {
     @State private var buddyService = BuddyService.shared
     @State private var premiumService = PremiumService.shared
     @State private var showingPaywall = false
+    @State private var showingHistory = false
+
+    /// Messages from the active conversation, or empty if none.
+    private var messages: [ChatMessage] {
+        buddyService.activeConversation?.messages ?? []
+    }
 
     private var remainingMessages: Int? {
         BuddyChatUsageLogic.remainingMessages(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium)
+    }
+
+    /// Whether to auto-start a new conversation (last message >4 hours old).
+    private func shouldStartNewConversation() -> Bool {
+        guard let active = buddyService.activeConversation else { return true }
+        guard let lastMessage = active.messages.last else { return true }
+        let fourHours: TimeInterval = 4 * 60 * 60
+        return Date().timeIntervalSince(lastMessage.timestamp) > fourHours
     }
 
     var body: some View {
@@ -62,13 +69,44 @@ private struct BuddyChatAvailableView: View {
         }
         .onAppear {
             availability = BuddyChatEngine.currentAvailability
-            if availability == .available, engine == nil {
-                engine = BuddyChatEngine(buddyName: buddyName)
-                messages = [BuddyChatMessage(isFromUser: false, text: "Hey, I'm \(buddyName). What's on your mind today?")]
+            if availability == .available {
+                if engine == nil {
+                    engine = BuddyChatEngine(buddyName: buddyName)
+                }
+                // Load existing conversation or start a new one
+                if buddyService.activeConversation == nil || shouldStartNewConversation() {
+                    buddyService.startNewConversation()
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showingHistory = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                }
+                .accessibilityLabel("Chat history")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    buddyService.startNewConversation()
+                    engine = BuddyChatEngine(buddyName: buddyName)
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                }
+                .accessibilityLabel("New conversation")
             }
         }
         .sheet(isPresented: $showingPaywall) {
             PaywallView(trigger: .chatCapped)
+        }
+        .sheet(isPresented: $showingHistory) {
+            ChatHistoryView(buddyService: buddyService) { conversation in
+                buddyService.resumeConversation(conversation)
+                engine = BuddyChatEngine(buddyName: buddyName)
+                showingHistory = false
+            }
         }
     }
 
@@ -102,7 +140,7 @@ private struct BuddyChatAvailableView: View {
                 }
                 .scrollDismissesKeyboard(.immediately)
                 .onTapGesture { isInputFocused = false }
-                .onChange(of: messages) { scrollToBottom(using: proxy) }
+                .onChange(of: buddyService.activeConversation?.messages.count) { scrollToBottom(using: proxy) }
                 .onChange(of: isThinking) { scrollToBottom(using: proxy) }
                 .onChange(of: isInputFocused) { scrollToBottom(using: proxy) }
             }
@@ -168,7 +206,14 @@ private struct BuddyChatAvailableView: View {
             return
         }
 
-        messages.append(BuddyChatMessage(isFromUser: true, text: text))
+        // Auto-start new conversation if last message is old
+        if shouldStartNewConversation() {
+            buddyService.startNewConversation()
+            self.engine = BuddyChatEngine(buddyName: buddyName)
+        }
+
+        let userMessage = ChatMessage(isFromUser: true, text: text)
+        buddyService.appendMessage(userMessage)
         buddyService.recordChatActivity()
         inputText = ""
         // Multiline TextField(axis: .vertical) can visually keep the old
@@ -178,7 +223,8 @@ private struct BuddyChatAvailableView: View {
         isInputFocused = true
 
         if BuddyLogic.containsCrisisSignal(text) {
-            messages.append(BuddyChatMessage(isFromUser: false, text: BuddyLogic.crisisResponse))
+            let crisisMessage = ChatMessage(isFromUser: false, text: BuddyLogic.crisisResponse)
+            buddyService.appendMessage(crisisMessage)
             return
         }
 
@@ -186,10 +232,12 @@ private struct BuddyChatAvailableView: View {
         Task {
             do {
                 let reply = try await engine.reply(to: text)
-                messages.append(BuddyChatMessage(isFromUser: false, text: reply))
+                let buddyMessage = ChatMessage(isFromUser: false, text: reply)
+                buddyService.appendMessage(buddyMessage)
             } catch {
                 NSLog("BuddyChatEngine reply failed: %@", String(describing: error))
-                messages.append(BuddyChatMessage(isFromUser: false, text: "Sorry, I'm having trouble responding right now — try again in a moment."))
+                let errorMessage = ChatMessage(isFromUser: false, text: "Sorry, I'm having trouble responding right now — try again in a moment.")
+                buddyService.appendMessage(errorMessage)
             }
             isThinking = false
         }
@@ -197,7 +245,7 @@ private struct BuddyChatAvailableView: View {
 }
 
 private struct BuddyChatBubble: View {
-    let message: BuddyChatMessage
+    let message: ChatMessage
 
     var body: some View {
         HStack {

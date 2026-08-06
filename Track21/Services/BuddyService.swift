@@ -22,6 +22,8 @@ final class BuddyService {
     private let chatDaysKey = "Track21BuddyChatDays"
     private let dailyMessageCountKey = "Track21BuddyDailyMessageCount"
     private let dailyMessageDateKey = "Track21BuddyDailyMessageDate"
+    private let conversationsKey = "Track21BuddyChatConversations"
+    private let activeConversationIDKey = "Track21BuddyActiveConversationID"
     private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -38,6 +40,18 @@ final class BuddyService {
     /// recordChatActivity is called on a new calendar day.
     private(set) var messagesSentToday: Int = 0
 
+    /// All persisted chat conversations, sorted by most recent first.
+    private(set) var conversations: [ChatConversation] = []
+
+    /// The currently active conversation's ID, if any.
+    private(set) var activeConversationID: UUID?
+
+    /// The currently active conversation, derived from conversations array.
+    var activeConversation: ChatConversation? {
+        guard let id = activeConversationID else { return nil }
+        return conversations.first { $0.id == id }
+    }
+
     private var center: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
     private init() {
@@ -48,6 +62,8 @@ final class BuddyService {
            Calendar.current.isDateInToday(storedDate) {
             messagesSentToday = UserDefaults.standard.integer(forKey: dailyMessageCountKey)
         }
+
+        loadConversations()
     }
 
     var hasNamedBuddy: Bool { buddyName != nil }
@@ -103,6 +119,68 @@ final class BuddyService {
         UserDefaults.standard.set(now, forKey: lastNudgeDateKey)
     }
 
+    // MARK: - Chat History
+
+    /// Loads conversations from UserDefaults on init.
+    private func loadConversations() {
+        if let data = UserDefaults.standard.data(forKey: conversationsKey),
+           let decoded = try? JSONDecoder().decode([ChatConversation].self, from: data) {
+            conversations = decoded.sorted { $0.lastMessageAt > $1.lastMessageAt }
+        }
+        if let idString = UserDefaults.standard.string(forKey: activeConversationIDKey),
+           let id = UUID(uuidString: idString) {
+            activeConversationID = id
+        }
+    }
+
+    /// Starts a new conversation with an initial buddy greeting.
+    @discardableResult
+    func startNewConversation() -> ChatConversation {
+        let greeting = "Hey, I'm \(buddyName ?? "your buddy"). What's on your mind today?"
+        let initialMessage = ChatMessage(isFromUser: false, text: greeting)
+        let conversation = ChatConversation(
+            buddyName: buddyName ?? "Buddy",
+            messages: [initialMessage]
+        )
+        conversations.insert(conversation, at: 0)
+        activeConversationID = conversation.id
+        persistConversations()
+        return conversation
+    }
+
+    /// Appends a message to the active conversation and persists.
+    func appendMessage(_ message: ChatMessage) {
+        guard let index = conversations.firstIndex(where: { $0.id == activeConversationID }) else { return }
+        conversations[index].messages.append(message)
+        conversations[index].lastMessageAt = message.timestamp
+        // Re-sort so active conversation floats to top
+        conversations.sort { $0.lastMessageAt > $1.lastMessageAt }
+        persistConversations()
+    }
+
+    /// Resumes an existing conversation by setting it as active.
+    func resumeConversation(_ conversation: ChatConversation) {
+        activeConversationID = conversation.id
+        UserDefaults.standard.set(conversation.id.uuidString, forKey: activeConversationIDKey)
+    }
+
+    /// Clears all chat history.
+    func clearChatHistory() {
+        conversations = []
+        activeConversationID = nil
+        UserDefaults.standard.removeObject(forKey: conversationsKey)
+        UserDefaults.standard.removeObject(forKey: activeConversationIDKey)
+    }
+
+    private func persistConversations() {
+        if let data = try? JSONEncoder().encode(conversations) {
+            UserDefaults.standard.set(data, forKey: conversationsKey)
+        }
+        if let id = activeConversationID {
+            UserDefaults.standard.set(id.uuidString, forKey: activeConversationIDKey)
+        }
+    }
+
     func clearData() {
         buddyName = nil
         chatDays = []
@@ -113,5 +191,6 @@ final class BuddyService {
         UserDefaults.standard.removeObject(forKey: dailyMessageCountKey)
         UserDefaults.standard.removeObject(forKey: dailyMessageDateKey)
         center.removePendingNotificationRequests(withIdentifiers: [nudgeIdentifier])
+        clearChatHistory()
     }
 }

@@ -22,6 +22,8 @@ struct ProfileView: View {
     @State private var successMessage: String?
     @State private var showingPaywall = false
     @State private var paywallTrigger: PaywallView.Trigger = .general
+    @State private var buddyService = BuddyService.shared
+    @State private var showingClearChatAlert = false
     #if DEBUG
     @State private var showingDebugMenu = false
     #endif
@@ -32,6 +34,7 @@ struct ProfileView: View {
                 profileSection
                 premiumSection
                 freezeSection
+                buddySection
                 aboutSection
                 moreSection
                 signOutSection
@@ -61,6 +64,14 @@ struct ProfileView: View {
                 }
             } message: {
                 Text("This will permanently delete your account and all your data. This action cannot be undone.")
+            }
+            .alert("Clear Chat History", isPresented: $showingClearChatAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Clear All", role: .destructive) {
+                    buddyService.clearChatHistory()
+                }
+            } message: {
+                Text("This will permanently delete all your conversations with \(buddyService.buddyName ?? "your buddy"). This action cannot be undone.")
             }
             #if DEBUG
             .sheet(isPresented: $showingDebugMenu) {
@@ -176,6 +187,30 @@ struct ProfileView: View {
                 }
                 .font(.subheadline.weight(.semibold))
             }
+        }
+    }
+
+    @ViewBuilder
+    private var buddySection: some View {
+        Section {
+            Button(role: .destructive) {
+                showingClearChatAlert = true
+            } label: {
+                HStack(spacing: 12) {
+                    iconBadge("trash.fill", color: .red)
+                    Text("Clear Chat History")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    if buddyService.conversations.count > 0 {
+                        Text("\(buddyService.conversations.count) conversation\(buddyService.conversations.count == 1 ? "" : "s")")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .disabled(buddyService.conversations.isEmpty)
+        } header: {
+            Text("AI Buddy")
         }
     }
 
