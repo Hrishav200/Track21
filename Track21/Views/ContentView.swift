@@ -186,7 +186,7 @@ struct ContentView: View {
                     StatsView(viewModel: viewModel)
                 }
                 Tab("Buddy", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
-                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
                 }
                 Tab("Achievements", systemImage: "trophy.fill", value: 3) {
                     AchievementsView(viewModel: viewModel)
@@ -214,7 +214,7 @@ struct ContentView: View {
                         .tag(1)
                         .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
 
-                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy")
+                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
                         .tag(2)
                         .tabItem { Label("Buddy", systemImage: "bubble.left.and.bubble.right.fill") }
 

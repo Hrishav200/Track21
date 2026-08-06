@@ -14,12 +14,23 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     let isFromUser: Bool
     let text: String
     let timestamp: Date
+    var pendingAction: BuddyAction?
+    var actionStatus: ActionStatus?
 
-    init(id: UUID = UUID(), isFromUser: Bool, text: String, timestamp: Date = Date()) {
+    init(
+        id: UUID = UUID(),
+        isFromUser: Bool,
+        text: String,
+        timestamp: Date = Date(),
+        pendingAction: BuddyAction? = nil,
+        actionStatus: ActionStatus? = nil
+    ) {
         self.id = id
         self.isFromUser = isFromUser
         self.text = text
         self.timestamp = timestamp
+        self.pendingAction = pendingAction
+        self.actionStatus = actionStatus
     }
 }
 

@@ -47,9 +47,16 @@ enum BuddyAvailability: Equatable {
 final class BuddyChatEngine {
     let buddyName: String
     private var session: LanguageModelSession?
+    private var currentHabits: [Habit] = []
 
     init(buddyName: String) {
         self.buddyName = buddyName
+    }
+
+    /// Updates the habits context for the current session. Call before each
+    /// request so the AI knows what habits exist for update/delete operations.
+    func updateHabitsContext(_ habits: [Habit]) {
+        currentHabits = habits
     }
 
     static var currentAvailability: BuddyAvailability {
@@ -68,14 +75,19 @@ final class BuddyChatEngine {
     }
 
     func reply(to userText: String) async throws -> String {
-        let activeSession = session ?? LanguageModelSession(instructions: Self.instructions(buddyName: buddyName))
+        let instructions = Self.instructions(buddyName: buddyName, habits: currentHabits)
+        let activeSession = session ?? LanguageModelSession(instructions: instructions)
         session = activeSession
         let response = try await activeSession.respond(to: userText)
         return response.content
     }
 
-    private static func instructions(buddyName: String) -> String {
-        """
+    private static func instructions(buddyName: String, habits: [Habit]) -> String {
+        let habitsList = habits.isEmpty
+            ? "The user has no habits yet."
+            : "Current habits: " + habits.map { "\($0.name) (goal: \($0.goal))" }.joined(separator: ", ") + "."
+
+        return """
         You are \(buddyName), a warm, encouraging accountability buddy inside a habit-tracking app called Track21. \
         Your job is to motivate the user to keep their habits and streaks going, celebrate their wins, and \
         gently encourage them after a missed day. Keep replies short — 2 to 4 sentences, conversational, warm, \
@@ -84,6 +96,25 @@ final class BuddyChatEngine {
         turns to self-harm, suicide, or a genuine mental health crisis, gently say you're not equipped to help \
         with that and encourage the user to reach out to a real person or a crisis line — do not try to handle \
         it yourself beyond that.
+
+        \(habitsList)
+
+        HABIT MANAGEMENT: You can help users add, update, or delete habits. When the user asks to manage a habit, \
+        respond with encouragement AND include exactly one action marker at the end of your message. The app will \
+        parse these markers and show a confirmation UI to the user.
+
+        Action marker formats (use exactly this syntax):
+        - To add a habit: [ACTION:ADD_HABIT name="Habit Name" goal="Goal description" color="6BB6FF"]
+        - To update a habit: [ACTION:UPDATE_HABIT name="Existing Habit Name" newGoal="New goal"]
+        - To delete a habit: [ACTION:DELETE_HABIT name="Habit Name"]
+
+        Rules:
+        1. Only include an action marker when the user clearly requests to add, update, or delete a habit.
+        2. If the user's request is ambiguous (e.g., "add a habit" without details), ask clarifying questions instead of guessing.
+        3. For updates and deletes, use the exact habit name from the current habits list.
+        4. If the user asks to delete or update a habit that doesn't exist, let them know kindly.
+        5. The color should be a 6-character hex code without the # (e.g., "6BB6FF" for blue, "4CAF50" for green).
+        6. Always write a friendly, encouraging message before the action marker — the marker will be hidden from the user.
         """
     }
 }

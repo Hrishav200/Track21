@@ -158,6 +158,16 @@ final class BuddyService {
         persistConversations()
     }
 
+    /// Updates the action status of a message in the active conversation.
+    func updateMessageActionStatus(messageID: UUID, status: ActionStatus) {
+        guard let convIndex = conversations.firstIndex(where: { $0.id == activeConversationID }),
+              let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }) else {
+            return
+        }
+        conversations[convIndex].messages[msgIndex].actionStatus = status
+        persistConversations()
+    }
+
     /// Resumes an existing conversation by setting it as active.
     func resumeConversation(_ conversation: ChatConversation) {
         activeConversationID = conversation.id

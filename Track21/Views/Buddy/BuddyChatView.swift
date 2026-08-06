@@ -8,15 +8,18 @@
 //
 
 import SwiftUI
+internal import Auth
 
 struct BuddyChatView: View {
     let buddyName: String
+    @Bindable var viewModel: HabitViewModel
+    let authService: AuthService
 
     var body: some View {
         NavigationStack {
             Group {
                 if #available(iOS 26.0, *) {
-                    BuddyChatAvailableView(buddyName: buddyName)
+                    BuddyChatAvailableView(buddyName: buddyName, viewModel: viewModel, authService: authService)
                 } else {
                     BuddyChatUnavailableView(buddyName: buddyName, reason: .unsupportedOS)
                 }
@@ -30,6 +33,8 @@ struct BuddyChatView: View {
 @available(iOS 26.0, *)
 private struct BuddyChatAvailableView: View {
     let buddyName: String
+    @Bindable var viewModel: HabitViewModel
+    let authService: AuthService
 
     @State private var engine: BuddyChatEngine?
     @State private var availability: BuddyAvailability = .modelNotReady
@@ -116,8 +121,21 @@ private struct BuddyChatAvailableView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(messages) { message in
-                            BuddyChatBubble(message: message)
-                                .id(message.id)
+                            VStack(alignment: .leading, spacing: 8) {
+                                BuddyChatBubble(message: message)
+
+                                // Show action card for messages with pending actions
+                                if let action = message.pendingAction {
+                                    BuddyActionCard(
+                                        action: action,
+                                        status: message.actionStatus ?? .pending,
+                                        onConfirm: { confirmAction(message: message, action: action) },
+                                        onCancel: { cancelAction(message: message) }
+                                    )
+                                    .padding(.leading, 4)
+                                }
+                            }
+                            .id(message.id)
                         }
                         if isThinking {
                             HStack {
@@ -231,8 +249,20 @@ private struct BuddyChatAvailableView: View {
         isThinking = true
         Task {
             do {
+                // Update habits context before each request
+                engine.updateHabitsContext(viewModel.habits)
+
                 let reply = try await engine.reply(to: text)
-                let buddyMessage = ChatMessage(isFromUser: false, text: reply)
+
+                // Parse the response for action markers
+                let parseResult = BuddyActionParser.parse(reply, habits: viewModel.habits)
+
+                let buddyMessage = ChatMessage(
+                    isFromUser: false,
+                    text: parseResult.cleanedText,
+                    pendingAction: parseResult.action,
+                    actionStatus: parseResult.action != nil ? .pending : nil
+                )
                 buddyService.appendMessage(buddyMessage)
             } catch {
                 NSLog("BuddyChatEngine reply failed: %@", String(describing: error))
@@ -240,6 +270,94 @@ private struct BuddyChatAvailableView: View {
                 buddyService.appendMessage(errorMessage)
             }
             isThinking = false
+        }
+    }
+
+    private func confirmAction(message: ChatMessage, action: BuddyAction) {
+        buddyService.updateMessageActionStatus(messageID: message.id, status: .confirmed)
+
+        Task {
+            let success = await executeAction(action)
+            buddyService.updateMessageActionStatus(messageID: message.id, status: success ? .executed : .failed)
+
+            // Send a follow-up message from the buddy
+            let followUpText = success
+                ? actionSuccessMessage(for: action)
+                : actionFailureMessage(for: action)
+            let followUpMessage = ChatMessage(isFromUser: false, text: followUpText)
+            buddyService.appendMessage(followUpMessage)
+        }
+    }
+
+    private func cancelAction(message: ChatMessage) {
+        buddyService.updateMessageActionStatus(messageID: message.id, status: .cancelled)
+
+        // Send a friendly cancellation message
+        let cancelMessage = ChatMessage(
+            isFromUser: false,
+            text: "No problem! Let me know if you'd like to do something else."
+        )
+        buddyService.appendMessage(cancelMessage)
+    }
+
+    private func executeAction(_ action: BuddyAction) async -> Bool {
+        switch action.type {
+        case .addHabit:
+            let color = action.habitColor ?? "6BB6FF"
+            let habit = Habit(
+                name: action.habitName,
+                goal: action.habitGoal ?? "Daily",
+                color: color,
+                userId: authService.currentUser?.id
+            )
+            viewModel.addHabit(habit)
+            return true
+
+        case .updateHabit:
+            guard let targetID = action.targetHabitID,
+                  let habit = viewModel.habits.first(where: { $0.id == targetID }) else {
+                return false
+            }
+            if let newGoal = action.habitGoal {
+                habit.goal = newGoal
+            }
+            if let newColor = action.habitColor {
+                habit.color = newColor
+            }
+            habit.updatedAt = Date()
+            habit.syncStatus = .pending
+            viewModel.updateHabit(habit)
+            return true
+
+        case .deleteHabit:
+            guard let targetID = action.targetHabitID,
+                  let habit = viewModel.habits.first(where: { $0.id == targetID }) else {
+                return false
+            }
+            await viewModel.deleteHabit(habit)
+            return true
+        }
+    }
+
+    private func actionSuccessMessage(for action: BuddyAction) -> String {
+        switch action.type {
+        case .addHabit:
+            return "Done! I've added \"\(action.habitName)\" to your habits. You've got this — let's build that streak!"
+        case .updateHabit:
+            return "All set! I've updated \"\(action.habitName)\" for you. Keep up the great work!"
+        case .deleteHabit:
+            return "Done! I've removed \"\(action.habitName)\" from your habits. If you ever want to start it again, just let me know!"
+        }
+    }
+
+    private func actionFailureMessage(for action: BuddyAction) -> String {
+        switch action.type {
+        case .addHabit:
+            return "Hmm, something went wrong and I couldn't add that habit. Want to try again?"
+        case .updateHabit:
+            return "I couldn't find that habit to update — it might have been deleted. Want me to add it as a new habit instead?"
+        case .deleteHabit:
+            return "I couldn't find that habit to delete — it might have already been removed."
         }
     }
 }
@@ -281,8 +399,4 @@ private struct BuddyChatUnavailableView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel("Buddy chat unavailable")
     }
-}
-
-#Preview {
-    BuddyChatView(buddyName: "Max")
 }
