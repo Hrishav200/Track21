@@ -39,21 +39,21 @@ class ProfileService {
         }
     }
     
-    /// Create a new profile for user
+    /// Create or update a profile for user (upsert handles auto-created rows from triggers)
     func createProfile(userId: UUID, username: String, fullName: String? = nil) async throws -> UserProfile {
         isLoading = true
         errorMessage = nil
-        
+
         defer { isLoading = false }
-        
+
         let profile = UserProfile(id: userId, username: username, fullName: fullName)
-        
+
         do {
             try await supabase
                 .from("profiles")
-                .insert(profile)
+                .upsert(profile)
                 .execute()
-            
+
             currentProfile = profile
             return profile
         } catch {

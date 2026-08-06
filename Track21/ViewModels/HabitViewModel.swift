@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 
+@MainActor
 @Observable
 class HabitViewModel {
     var habits: [Habit] = []
@@ -20,7 +21,16 @@ class HabitViewModel {
     var isSyncing: Bool { syncService.isSyncing }
     var lastSyncDate: Date? { syncService.lastSyncDate }
     var syncError: String? { syncService.syncError }
-    
+
+    var freezesAvailable: Int { StreakFreezeService.shared.freezesAvailable }
+    var freezeRefillDate: Date { StreakFreezeService.shared.refillDate }
+    var isPremium: Bool { StreakFreezeService.shared.isPremium }
+
+    /// Set whenever a habit toggle or streak-freeze protection just crossed
+    /// a badge into unlocked — ContentView observes this to show a
+    /// celebration toast, then clears it back to empty.
+    var recentlyUnlockedAchievements: [Achievement] = []
+
     init() {
         loadHabits()
         loadUserName()
@@ -45,8 +55,9 @@ class HabitViewModel {
     func addHabit(_ habit: Habit) {
         habits.append(habit)
         saveHabits()
+        NotificationService.shared.scheduleReminder(for: habit)
     }
-    
+
     func deleteHabit(_ habit: Habit) async {
         // Delete from cloud first if user is set
         if habit.userId != nil {
@@ -56,17 +67,23 @@ class HabitViewModel {
                 // Silently handle cloud delete failure - local delete still proceeds
             }
         }
-        
+
         // Remove from local
         habits.removeAll { $0.id == habit.id }
         saveHabits()
+        NotificationService.shared.cancelReminder(for: habit)
     }
     
     func toggleHabitCompletion(_ habit: Habit) {
+        toggleHabitCompletion(habit, for: Date())
+    }
+
+    func toggleHabitCompletion(_ habit: Habit, for date: Date) {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
-            habits[index].toggleCompletion()
+            habits[index].toggleCompletion(for: date)
             saveHabits()
-            
+            checkForNewAchievements()
+
             // Trigger sync if user is logged in
             if let userId = habits[index].userId {
                 Task {
@@ -75,11 +92,24 @@ class HabitViewModel {
             }
         }
     }
+
+    /// Recomputes badge state and stashes any newly-unlocked ones for
+    /// ContentView to celebrate. Safe to call often — no-ops when nothing
+    /// new crossed into unlocked.
+    @discardableResult
+    func checkForNewAchievements() -> [Achievement] {
+        let newly = AchievementService.shared.refresh(habits: habits).newlyUnlocked
+        if !newly.isEmpty {
+            recentlyUnlockedAchievements = newly
+        }
+        return newly
+    }
     
     func updateHabit(_ habit: Habit) {
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
             habits[index] = habit
             saveHabits()
+            NotificationService.shared.scheduleReminder(for: habit)
         }
     }
     
@@ -92,11 +122,30 @@ class HabitViewModel {
                 return updated
             }
             saveHabits()
+
+            // If another sync was queued while we were syncing, run it now
+            if let pending = syncService.pendingSync {
+                syncService.pendingSync = nil
+                await syncWithCloud(userId: pending.userId)
+            }
         } catch {
             // Sync error is exposed via syncError property
         }
     }
     
+    /// Call once per app foreground. Auto-protects any habit that missed
+    /// exactly yesterday while mid-streak, consuming a freeze if available.
+    /// Returns the habits that got protected so the UI can show a toast.
+    @discardableResult
+    func protectStreaksIfNeeded() -> [Habit] {
+        let protected = StreakFreezeService.shared.protectStreaks(for: habits)
+        if !protected.isEmpty {
+            saveHabits()
+            checkForNewAchievements()
+        }
+        return protected
+    }
+
     func saveUserName(_ name: String) {
         userName = name
         UserDefaults.standard.set(name, forKey: userNameKey)
@@ -105,8 +154,10 @@ class HabitViewModel {
     func clearData() {
         habits = []
         userName = "Friend"
+        recentlyUnlockedAchievements = []
         UserDefaults.standard.removeObject(forKey: saveKey)
         UserDefaults.standard.removeObject(forKey: userNameKey)
+        AchievementService.shared.clearData()
     }
     
     private func saveHabits() {
