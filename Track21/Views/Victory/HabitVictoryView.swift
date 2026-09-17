@@ -11,12 +11,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct HabitVictoryView: View {
     let habit: Habit
     var onDismiss: () -> Void
 
     @State private var showContent = false
+    @State private var shareImage: UIImage?
 
     private var isPerfect: Bool { HabitVictoryLogic.isPerfectCycle(habit) }
     private var freezesUsed: Int { habit.totalFrozen }
@@ -61,18 +63,40 @@ struct HabitVictoryView: View {
 
                 Spacer()
 
-                Button(action: onDismiss) {
-                    Text("Let's Keep Going \u{1F680}")
-                        .font(.headline)
-                        .foregroundColor(accentColor)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.white)
-                        .cornerRadius(16)
+                VStack(spacing: 12) {
+                    if let shareImage {
+                        ShareLink(
+                            item: Image(uiImage: shareImage),
+                            preview: SharePreview(
+                                "21 Days Strong! I completed \(habit.name) \u{1F389}",
+                                image: Image(uiImage: shareImage)
+                            )
+                        ) {
+                            Text("Share the Win \u{1F4E4}")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.white.opacity(0.18))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.5), lineWidth: 1))
+                                .cornerRadius(16)
+                        }
+                        .accessibilityLabel("Share the win")
+                    }
+
+                    Button(action: onDismiss) {
+                        Text("Let's Keep Going \u{1F680}")
+                            .font(.headline)
+                            .foregroundColor(accentColor)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.white)
+                            .cornerRadius(16)
+                    }
+                    .accessibilityLabel("Dismiss celebration")
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 24)
-                .accessibilityLabel("Dismiss celebration")
             }
             .opacity(showContent ? 1 : 0)
             .offset(y: showContent ? 0 : 16)
@@ -81,7 +105,18 @@ struct HabitVictoryView: View {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.75)) {
                 showContent = true
             }
+            renderShareImage()
         }
+    }
+
+    /// Snapshots the static HabitVictoryShareCard into a UIImage for the
+    /// share sheet. Rendered once up front (not lazily on tap) since it's a
+    /// cheap, synchronous SwiftUI-to-image pass with no network/async work —
+    /// this way the Share button never has to show a loading state.
+    private func renderShareImage() {
+        let renderer = ImageRenderer(content: HabitVictoryShareCard(habit: habit))
+        renderer.scale = UIScreen.main.scale
+        shareImage = renderer.uiImage
     }
 
     private var statsRow: some View {

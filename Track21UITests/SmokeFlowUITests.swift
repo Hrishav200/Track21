@@ -263,6 +263,7 @@ final class SmokeFlowUITests: XCTestCase {
         previewButton.tap()
 
         XCTAssertTrue(app.staticTexts["21 Days Strong!"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Share the win"].exists)
         Thread.sleep(forTimeInterval: 1.0) // let confetti/entrance animation settle
         attach(app, name: "17-habit-victory-screen")
     }
