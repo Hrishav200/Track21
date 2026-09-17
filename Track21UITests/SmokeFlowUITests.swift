@@ -88,18 +88,25 @@ final class SmokeFlowUITests: XCTestCase {
 
         addHabit(app, name: "Read", goal: "20 pages")
 
-        let statsTab = app.buttons["Statistics"]
+        let statsTab = app.buttons["Stats"]
         XCTAssertTrue(statsTab.waitForExistence(timeout: 5))
         statsTab.tap()
 
-        XCTAssertTrue(app.staticTexts["Statistics"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["This Week"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["21-Day Journey"].waitForExistence(timeout: 5))
-        attach(app, name: "05-stats-first-habit")
+        // With 2+ habits, Stats opens on the aggregate "All" overview, not
+        // any one habit's detail — the ConsistencyRingView hero + donut
+        // chart, not the per-habit weekly chart/journey grid.
+        XCTAssertTrue(app.staticTexts["Stats"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Overall Consistency"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Consistency Breakdown"].waitForExistence(timeout: 5))
+        attach(app, name: "05-stats-all-overview")
 
         let readChip = app.buttons["Read"]
         XCTAssertTrue(readChip.waitForExistence(timeout: 5))
         readChip.tap()
+
+        // Tapping a habit's chip drills into that habit's own detail view.
+        XCTAssertTrue(app.staticTexts["This Week"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["21-Day Journey"].waitForExistence(timeout: 5))
         attach(app, name: "06-stats-second-habit")
 
         app.swipeUp()
@@ -224,7 +231,7 @@ final class SmokeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Drink Water"].waitForExistence(timeout: 10))
         attach(app, name: "09-home-with-frozen-day")
 
-        let statsTab = app.buttons["Statistics"]
+        let statsTab = app.buttons["Stats"]
         XCTAssertTrue(statsTab.waitForExistence(timeout: 5))
         statsTab.tap()
 

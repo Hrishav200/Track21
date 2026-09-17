@@ -32,6 +32,19 @@ struct StatsView: View {
             AppTheme.background
                 .edgesIgnoringSafeArea(.all)
 
+            // A faint brand-tinted wash behind the header only — just enough
+            // to keep the tab from reading as a flat gray spreadsheet without
+            // tinting the cards or charts below it.
+            LinearGradient(
+                colors: [AppTheme.primary.opacity(0.14), AppTheme.primary.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 220)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .edgesIgnoringSafeArea(.top)
+            .allowsHitTesting(false)
+
             if viewModel.habits.isEmpty {
                 emptyState
             } else {
@@ -63,11 +76,27 @@ struct StatsView: View {
                     if isLocked(habit) {
                         lockedHistoryCard
                     } else {
+                        ConsistencyRingView(
+                            progress: habit.completionRate,
+                            ringColor: Color(hex: habit.color),
+                            title: habit.name,
+                            subtitle: "Day \(habit.currentDay) of 21",
+                            streakText: habit.currentStreak > 0 ? "\(habit.currentStreak)-day streak" : nil
+                        )
                         StatsOverviewCards(habit: habit)
                         HabitWeeklyChart(habit: habit)
                         HabitJourneyGrid(habit: habit)
                     }
                 } else {
+                    ConsistencyRingView(
+                        progress: StatsAggregation.overallCompletionRate(for: viewModel.habits),
+                        ringColor: AppTheme.primary,
+                        title: "Overall Consistency",
+                        subtitle: viewModel.habits.count == 1 ? "1 habit" : "\(viewModel.habits.count) habits",
+                        streakText: StatsAggregation.bestStreakEver(for: viewModel.habits) > 0
+                            ? "\(StatsAggregation.bestStreakEver(for: viewModel.habits))-day best streak"
+                            : nil
+                    )
                     OverallStatsCards(habits: viewModel.habits)
                     OverallCompletionChart(habits: viewModel.habits)
                 }
@@ -105,21 +134,20 @@ struct StatsView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 10)
-                .background(AppTheme.primary)
+                .background(AppTheme.primary.gradient)
                 .cornerRadius(12)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
-        .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .statsCardStyle(cornerRadius: 20)
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Stats")
-                .font(.largeTitle)
-                .fontWeight(.bold)
+                .font(.system(.largeTitle, design: .rounded))
+                .fontWeight(.heavy)
             Text("Your habit journey at a glance")
                 .font(.subheadline)
                 .foregroundColor(.secondary)

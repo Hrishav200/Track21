@@ -18,6 +18,8 @@ private struct DayCompletion: Identifiable {
 struct HabitWeeklyChart: View {
     let habit: Habit
 
+    @State private var animateIn = false
+
     private var days: [DayCompletion] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -39,6 +41,7 @@ struct HabitWeeklyChart: View {
     }
 
     private func barHeight(for status: HabitDateStatus) -> Double {
+        guard animateIn else { return 0.02 }
         switch status {
         case .completed: return 1
         case .frozen: return 0.6
@@ -46,25 +49,25 @@ struct HabitWeeklyChart: View {
         }
     }
 
-    private func barColor(for status: HabitDateStatus) -> Color {
+    private func barStyle(for status: HabitDateStatus) -> AnyShapeStyle {
         switch status {
-        case .completed: return habitColor
-        case .frozen: return AppTheme.frozen
-        default: return Color.gray.opacity(0.2)
+        case .completed: return AnyShapeStyle(habitColor.gradient)
+        case .frozen: return AnyShapeStyle(AppTheme.frozen.gradient)
+        default: return AnyShapeStyle(Color.gray.opacity(0.2))
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("This Week")
-                .font(.headline)
+                .font(.system(.headline, design: .rounded))
 
             Chart(days) { day in
                 BarMark(
                     x: .value("Day", day.label),
                     y: .value("Completed", barHeight(for: day.status))
                 )
-                .foregroundStyle(barColor(for: day.status))
+                .foregroundStyle(barStyle(for: day.status))
                 .cornerRadius(6)
             }
             .chartYScale(domain: 0...1)
@@ -73,9 +76,13 @@ struct HabitWeeklyChart: View {
             .accessibilityLabel("Completion for the last 7 days")
             .accessibilityValue(days.map { "\($0.label) \(accessibilityWord(for: $0.status))" }.joined(separator: ", "))
         }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .padding(18)
+        .statsCardStyle(cornerRadius: 20)
+        .onAppear {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.75).delay(0.1)) {
+                animateIn = true
+            }
+        }
     }
 
     private func accessibilityWord(for status: HabitDateStatus) -> String {

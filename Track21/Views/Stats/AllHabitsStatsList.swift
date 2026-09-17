@@ -15,7 +15,7 @@ struct AllHabitsStatsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("All Habits")
-                .font(.headline)
+                .font(.system(.headline, design: .rounded))
 
             VStack(spacing: 10) {
                 ForEach(habits) { habit in
@@ -23,9 +23,8 @@ struct AllHabitsStatsList: View {
                 }
             }
         }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .padding(18)
+        .statsCardStyle(cornerRadius: 20)
     }
 
     private func row(for habit: Habit) -> some View {
@@ -43,17 +42,17 @@ struct AllHabitsStatsList: View {
                         .stroke(color.opacity(0.15), lineWidth: 4)
                     Circle()
                         .trim(from: 0, to: habit.completionRate)
-                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .stroke(color.gradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text("\(Int((habit.completionRate * 100).rounded()))")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 38, height: 38)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(habit.name)
                         .font(.subheadline)
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     Text("Day \(habit.currentDay) of 21")
                         .font(.caption2)
@@ -66,21 +65,29 @@ struct AllHabitsStatsList: View {
                     Image(systemName: "lock.fill")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                } else {
+                } else if habit.currentStreak > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
                             .font(.caption2)
                             .foregroundColor(.orange)
                         Text("\(habit.currentStreak)")
                             .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .fontWeight(.bold)
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12))
+                    .cornerRadius(10)
                 }
             }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 8)
-            .background(isSelected ? color.opacity(0.1) : Color.clear)
-            .cornerRadius(10)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(isSelected ? color.opacity(0.12) : Color.clear)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? color.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityElement(children: .combine)

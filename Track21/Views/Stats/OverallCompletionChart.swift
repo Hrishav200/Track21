@@ -22,6 +22,8 @@ private struct StatusSlice: Identifiable {
 struct OverallCompletionChart: View {
     let habits: [Habit]
 
+    @State private var animateIn = false
+
     private var counts: StatsAggregation.DayStatusCounts {
         StatsAggregation.dayStatusCounts(for: habits)
     }
@@ -34,15 +36,21 @@ struct OverallCompletionChart: View {
         ].filter { $0.count > 0 }
     }
 
+    /// The same slices with every count zeroed — the entrance-animation
+    /// starting state the donut sweeps in from on appear.
+    private var emptySlices: [StatusSlice] {
+        slices.map { StatusSlice(id: $0.id, label: $0.label, count: 0, color: $0.color) }
+    }
+
     private var onTrackPercent: Int {
         guard counts.total > 0 else { return 0 }
         return Int((Double(counts.completed + counts.frozen) / Double(counts.total) * 100).rounded())
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Overall Consistency")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Consistency Breakdown")
+                .font(.system(.headline, design: .rounded))
 
             if counts.total == 0 {
                 Text("Complete a day to see your breakdown here.")
@@ -56,28 +64,31 @@ struct OverallCompletionChart: View {
                 }
             }
         }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .padding(18)
+        .statsCardStyle(cornerRadius: 20)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.9).delay(0.1)) {
+                animateIn = true
+            }
+        }
     }
 
     private var donut: some View {
-        Chart(slices) { slice in
+        Chart(animateIn ? slices : emptySlices) { slice in
             SectorMark(
                 angle: .value("Days", slice.count),
-                innerRadius: .ratio(0.62),
-                angularInset: 1.5
+                innerRadius: .ratio(0.65),
+                angularInset: 2
             )
-            .foregroundStyle(slice.color)
-            .cornerRadius(4)
+            .foregroundStyle(slice.color.gradient)
+            .cornerRadius(5)
         }
         .chartLegend(.hidden)
-        .frame(width: 140, height: 140)
+        .frame(width: 144, height: 144)
         .overlay {
             VStack(spacing: 0) {
-                Text("\(onTrackPercent)%")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                Text("\(animateIn ? onTrackPercent : 0)%")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
                 Text("on track")
                     .font(.caption2)
                     .foregroundColor(.secondary)

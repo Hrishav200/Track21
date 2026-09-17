@@ -20,11 +20,16 @@ struct HabitJourneyGrid: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("21-Day Journey")
-                    .font(.headline)
+                    .font(.system(.headline, design: .rounded))
                 Spacer()
                 Text("Day \(habit.currentDay) of 21")
                     .font(.caption)
+                    .fontWeight(.medium)
                     .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.gray.opacity(0.12))
+                    .cornerRadius(20)
             }
 
             LazyVGrid(columns: columns, spacing: 8) {
@@ -35,17 +40,17 @@ struct HabitJourneyGrid: View {
 
             legend
         }
-        .padding()
-        .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .padding(18)
+        .statsCardStyle(cornerRadius: 20)
     }
 
     private func dayCell(dayNumber: Int) -> some View {
         let calendar = Calendar.current
         let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: habit.startDate) ?? habit.startDate
         let status = habit.dateStatus(for: date)
+        let isToday = calendar.isDateInToday(date)
 
-        return RoundedRectangle(cornerRadius: 6)
+        return RoundedRectangle(cornerRadius: 7)
             .fill(color(for: status))
             .aspectRatio(1, contentMode: .fit)
             .overlay(
@@ -65,6 +70,11 @@ struct HabitJourneyGrid: View {
                     }
                 }
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(isToday ? habitColor : Color.clear, lineWidth: 2)
+            )
+            .shadow(color: (status == .completed ? habitColor : .clear).opacity(0.35), radius: 3, x: 0, y: 2)
     }
 
     private func color(for status: HabitDateStatus) -> Color {
