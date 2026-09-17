@@ -31,6 +31,11 @@ class HabitViewModel {
     /// celebration toast, then clears it back to empty.
     var recentlyUnlockedAchievements: [Achievement] = []
 
+    /// Set the moment a habit finishes its full 21-day cycle for the first
+    /// time — ContentView presents HabitVictoryView full-screen for this,
+    /// then clears it back to nil. See HabitVictoryLogic/HabitVictoryService.
+    var recentHabitVictory: Habit?
+
     init() {
         loadHabits()
         loadUserName()
@@ -83,6 +88,7 @@ class HabitViewModel {
             habits[index].toggleCompletion(for: date)
             saveHabits()
             checkForNewAchievements()
+            checkForHabitVictory(habits[index])
 
             // Trigger sync if user is logged in
             if let userId = habits[index].userId {
@@ -91,6 +97,16 @@ class HabitViewModel {
                 }
             }
         }
+    }
+
+    /// Checks whether this habit just finished its 21-day cycle for the
+    /// first time and, if so, stashes it for ContentView to celebrate.
+    /// Safe to call often — no-ops once a habit has already been celebrated.
+    @discardableResult
+    func checkForHabitVictory(_ habit: Habit) -> Habit? {
+        guard HabitVictoryService.shared.checkForNewVictory(habit) else { return nil }
+        recentHabitVictory = habit
+        return habit
     }
 
     /// Recomputes badge state and stashes any newly-unlocked ones for
@@ -142,6 +158,7 @@ class HabitViewModel {
         if !protected.isEmpty {
             saveHabits()
             checkForNewAchievements()
+            protected.forEach { checkForHabitVictory($0) }
         }
         return protected
     }
@@ -155,9 +172,11 @@ class HabitViewModel {
         habits = []
         userName = "Friend"
         recentlyUnlockedAchievements = []
+        recentHabitVictory = nil
         UserDefaults.standard.removeObject(forKey: saveKey)
         UserDefaults.standard.removeObject(forKey: userNameKey)
         AchievementService.shared.clearData()
+        HabitVictoryService.shared.clearData()
     }
     
     private func saveHabits() {

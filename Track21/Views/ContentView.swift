@@ -114,6 +114,11 @@ struct ContentView: View {
                 viewModel: viewModel
             )
         }
+        .fullScreenCover(item: $viewModel.recentHabitVictory) { habit in
+            HabitVictoryView(habit: habit) {
+                viewModel.recentHabitVictory = nil
+            }
+        }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView(onFinish: {
                 hasSeenOnboarding = true

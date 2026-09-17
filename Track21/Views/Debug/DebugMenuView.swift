@@ -24,6 +24,7 @@ struct DebugMenuView: View {
     @State private var showingResetConfirm = false
     @State private var syncMessage: String?
     @State private var purchaseInFlight: String?
+    @State private var previewingVictory = false
 
     var body: some View {
         NavigationView {
@@ -131,6 +132,15 @@ struct DebugMenuView: View {
                     }
                 }
 
+                Section("Habit Victory Screen") {
+                    Button("Preview Victory Screen") {
+                        previewingVictory = true
+                    }
+                    Text("Shows the full-screen celebration with sample data — doesn't affect real habits.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
                 if let userId = authService.currentUser?.id {
                     Section("Sync") {
                         Button("Force Sync Now") {
@@ -172,7 +182,29 @@ struct DebugMenuView: View {
             } message: {
                 Text("Clears all habits, your buddy's name, the intro carousel, and resets the freeze wallet. This can't be undone.")
             }
+            .fullScreenCover(isPresented: $previewingVictory) {
+                HabitVictoryView(habit: Self.sampleVictoryHabit) {
+                    previewingVictory = false
+                }
+            }
         }
+    }
+
+    /// A fully-completed 21-day habit purely for previewing the victory
+    /// screen from the debug menu — never saved, never touches real data.
+    private static var sampleVictoryHabit: Habit {
+        let habit = Habit(
+            name: "Drink Water",
+            goal: "8 glasses",
+            color: "5DD167",
+            startDate: Calendar.current.date(byAdding: .day, value: -20, to: Date()) ?? Date()
+        )
+        for offset in 0...20 {
+            if let day = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) {
+                habit.completedDates.append(Calendar.current.startOfDay(for: day))
+            }
+        }
+        return habit
     }
 }
 #endif

@@ -232,6 +232,41 @@ final class SmokeFlowUITests: XCTestCase {
         attach(app, name: "10-journey-grid-with-frozen-day")
     }
 
+    /// Verifies the 21-day-cycle celebration screen (HabitVictoryView) via
+    /// the debug menu's preview button, since a real 21-day cycle can't be
+    /// produced through the UI in a single test run.
+    @MainActor
+    func testHabitVictoryScreenPreview() throws {
+        let app = launchApp()
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        let profileButton = app.buttons["Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 10))
+        profileButton.tap()
+
+        let debugMenuButton = app.buttons["Debug Menu"]
+        XCTAssertTrue(debugMenuButton.waitForExistence(timeout: 5))
+        debugMenuButton.tap()
+
+        // The debug Form is a lazily-rendered list — a cell this far down
+        // (after Premium/StoreKit/Freeze Wallet/Buddy/App Intro) doesn't
+        // exist in the AX tree until scrolled into view, unlike a plain
+        // waitForExistence which only helps for content already materialized.
+        let previewButton = app.buttons["Preview Victory Screen"]
+        for _ in 0..<5 where !previewButton.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(previewButton.waitForExistence(timeout: 5))
+        previewButton.tap()
+
+        XCTAssertTrue(app.staticTexts["21 Days Strong!"].waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1.0) // let confetti/entrance animation settle
+        attach(app, name: "17-habit-victory-screen")
+    }
+
     @MainActor
     private func addHabit(_ app: XCUIApplication, name: String, goal: String, enableReminder: Bool = false) {
         app.buttons["plus"].tap()
