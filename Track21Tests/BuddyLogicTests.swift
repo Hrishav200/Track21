@@ -115,4 +115,21 @@ struct BuddyLogicTests {
         #expect(BuddyLogic.containsCrisisSignal("I missed my streak and I feel bad") == false)
         #expect(BuddyLogic.containsCrisisSignal("This workout is killing me lol") == false)
     }
+
+    // MARK: - habit management intent guard
+
+    @Test func detectsExplicitHabitManagementRequests() {
+        #expect(BuddyLogic.requestsHabitManagement("add a habit called Meditate") == true)
+        #expect(BuddyLogic.requestsHabitManagement("can you delete my Running habit") == true)
+        #expect(BuddyLogic.requestsHabitManagement("please update my Reading habit goal") == true)
+        #expect(BuddyLogic.requestsHabitManagement("remove the Journaling habit") == true)
+        #expect(BuddyLogic.requestsHabitManagement("rename my habit to Yoga") == true)
+    }
+
+    @Test func ordinaryHabitTalkDoesNotTriggerManagement() {
+        #expect(BuddyLogic.requestsHabitManagement("I'm struggling to keep up with my Running habit") == false)
+        #expect(BuddyLogic.requestsHabitManagement("this habit is really hard today") == false)
+        #expect(BuddyLogic.requestsHabitManagement("how's my streak looking?") == false)
+        #expect(BuddyLogic.requestsHabitManagement("thanks for the encouragement!") == false)
+    }
 }

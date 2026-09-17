@@ -254,14 +254,18 @@ private struct BuddyChatAvailableView: View {
 
                 let reply = try await engine.reply(to: text)
 
-                // Parse the response for action markers
+                // Parse the response for action markers. The model can
+                // include one even when the user didn't ask for habit
+                // management, so only honor it when the user's own message
+                // actually requested it — independent of what the model did.
                 let parseResult = BuddyActionParser.parse(reply, habits: viewModel.habits)
+                let action = BuddyLogic.requestsHabitManagement(text) ? parseResult.action : nil
 
                 let buddyMessage = ChatMessage(
                     isFromUser: false,
                     text: parseResult.cleanedText,
-                    pendingAction: parseResult.action,
-                    actionStatus: parseResult.action != nil ? .pending : nil
+                    pendingAction: action,
+                    actionStatus: action != nil ? .pending : nil
                 )
                 buddyService.appendMessage(buddyMessage)
             } catch {

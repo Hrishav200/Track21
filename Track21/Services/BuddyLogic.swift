@@ -168,4 +168,24 @@ enum BuddyLogic {
     In the US, you can call or text 988 (Suicide & Crisis Lifeline) any time, day or night. \
     If you're outside the US, findahelpline.com has local numbers. You don't have to go through this alone.
     """
+
+    // MARK: - Habit management intent guard
+
+    // The on-device model doesn't always follow the "only when asked"
+    // instruction reliably (small models tend to over-suggest actions), so
+    // this is a deterministic backstop: an action marker is only honored if
+    // the user's own message actually asked for habit management. Requires a
+    // management verb alongside "habit" so ordinary chat about habits
+    // ("this habit is hard") doesn't trip it.
+    private static let habitManagementVerbs = [
+        "add", "create", "start tracking", "new habit",
+        "delete", "remove", "drop", "cancel", "stop tracking", "quit", "get rid of",
+        "update", "change", "edit", "rename", "modify", "adjust"
+    ]
+
+    static func requestsHabitManagement(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        guard lowered.contains("habit") else { return false }
+        return habitManagementVerbs.contains { lowered.contains($0) }
+    }
 }
