@@ -27,10 +27,16 @@ final class PremiumService {
 
     #if DEBUG
     private let debugOverrideKey = "Track21DebugIsPremium"
+    private let debugForceFreeKey = "Track21DebugForceFree"
     /// Manual override for local testing only — compiled out of release
     /// builds, so it can never affect a real user's entitlement.
     var debugOverride: Bool {
         didSet { UserDefaults.standard.set(debugOverride, forKey: debugOverrideKey) }
+    }
+    /// Force free user state, ignoring any real entitlements — for testing
+    /// the free tier experience even after a sandbox purchase.
+    var debugForceFree: Bool {
+        didSet { UserDefaults.standard.set(debugForceFree, forKey: debugForceFreeKey) }
     }
     #endif
 
@@ -38,6 +44,7 @@ final class PremiumService {
     /// entitlement, or (DEBUG only) the manual override from the debug menu.
     var isPremium: Bool {
         #if DEBUG
+        if debugForceFree { return false }
         if debugOverride { return true }
         #endif
         return hasActiveEntitlement
@@ -48,6 +55,7 @@ final class PremiumService {
     private init() {
         #if DEBUG
         debugOverride = UserDefaults.standard.bool(forKey: debugOverrideKey)
+        debugForceFree = UserDefaults.standard.bool(forKey: debugForceFreeKey)
         #endif
         transactionListenerTask = listenForTransactionUpdates()
         Task {

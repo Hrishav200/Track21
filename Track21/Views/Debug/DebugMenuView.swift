@@ -29,12 +29,22 @@ struct DebugMenuView: View {
         NavigationView {
             Form {
                 Section("Premium") {
-                    Toggle("Debug Override (force Pro)", isOn: $premiumService.debugOverride)
+                    Toggle("Force Pro (ignore entitlement)", isOn: $premiumService.debugOverride)
+                        .disabled(premiumService.debugForceFree)
+                    Toggle("Force Free (ignore entitlement)", isOn: $premiumService.debugForceFree)
+                        .disabled(premiumService.debugOverride)
                     HStack {
                         Text("Real Entitlement")
                         Spacer()
                         Text(premiumService.hasActiveEntitlement ? "Active" : "None")
                             .foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Text("Effective Status")
+                        Spacer()
+                        Text(premiumService.isPremium ? "Pro" : "Free")
+                            .foregroundColor(premiumService.isPremium ? .green : .secondary)
+                            .fontWeight(.medium)
                     }
                 }
 
