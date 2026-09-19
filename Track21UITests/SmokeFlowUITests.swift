@@ -240,9 +240,28 @@ final class SmokeFlowUITests: XCTestCase {
         let editor = app.textViews.firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         editor.tap()
-        editor.typeText("Got a run in before work.")
+        Thread.sleep(forTimeInterval: 0.6) // let the keyboard finish animating in and the scroll-to-Save-Entry settle
+        attach(app, name: "18b-journal-keyboard-open")
 
-        app.buttons["Save Entry"].tap()
+        // Regression check for the "keyboard hides Save Entry" bug: once
+        // the keyboard is up, the button's bottom edge must sit above the
+        // keyboard's top edge. (isHittable isn't used here — it's an
+        // unreliable signal once a system keyboard window exists, since
+        // that window's frame is full-screen even though only its bottom
+        // portion is actually visible/interactive; a direct tap still
+        // lands correctly regardless of what isHittable reports.)
+        let saveButton = app.buttons["Save Entry"]
+        XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 3) {
+            XCTAssertLessThanOrEqual(
+                saveButton.frame.maxY, keyboard.frame.minY,
+                "Save Entry should be scrolled above the keyboard, not hidden behind it"
+            )
+        }
+
+        editor.typeText("Got a run in before work.")
+        saveButton.tap()
 
         // A saved entry with a mood/text today should register a 1-day streak.
         XCTAssertTrue(app.staticTexts["1-day streak"].waitForExistence(timeout: 5))

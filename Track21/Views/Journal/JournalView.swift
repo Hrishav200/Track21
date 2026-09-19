@@ -36,22 +36,37 @@ struct JournalView: View {
             AppTheme.background
                 .edgesIgnoringSafeArea(.all)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header
-                    todayCard
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        header
+                        todayCard
 
-                    if pastEntries.isEmpty {
-                        emptyPastState
-                    } else {
-                        pastEntriesSection
+                        if pastEntries.isEmpty {
+                            emptyPastState
+                        } else {
+                            pastEntriesSection
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 60)
+                    .padding(.bottom, 100)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: isEditorFocused) { _, isFocused in
+                    guard isFocused else { return }
+                    // Deferred a tick so the keyboard's safe-area inset has
+                    // actually applied before scrolling — scrolling in the
+                    // same run-loop pass as the focus change can land short
+                    // and leave Save Entry under the keyboard, same fix as
+                    // LoginView's focused-field scrolling.
+                    DispatchQueue.main.async {
+                        withAnimation {
+                            proxy.scrollTo("journalSaveButton", anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 60)
-                .padding(.bottom, 100)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .onAppear(perform: loadToday)
         .sheet(item: $selectedEntry) { entry in
@@ -138,6 +153,7 @@ struct JournalView: View {
             }
             .disabled(!hasUnsavedContent)
             .opacity(hasUnsavedContent ? 1 : 0.5)
+            .id("journalSaveButton")
         }
         .padding(18)
         .statsCardStyle(cornerRadius: 20)
