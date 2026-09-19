@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct HabitCardView: View {
     let habit: Habit
@@ -60,8 +61,14 @@ struct HabitCardView: View {
 
                 Spacer()
 
-                // Completion toggle button on right
-                Button(action: onToggle) {
+                // Completion toggle button on right — this is the single
+                // most-repeated tap in the whole app, so it gets its own
+                // haptic: a firmer buzz for checking off (the whole point
+                // of the app), a lighter one for undoing.
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: isCompleted ? .light : .medium).impactOccurred()
+                    onToggle()
+                }) {
                     Circle()
                         .fill(isCompleted ? AppTheme.primary : Color.gray.opacity(0.2))
                         .frame(width: 32, height: 32)

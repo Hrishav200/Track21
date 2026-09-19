@@ -12,6 +12,7 @@
 
 import SwiftUI
 import UIKit
+import StoreKit
 
 struct HabitVictoryView: View {
     let habit: Habit
@@ -106,7 +107,21 @@ struct HabitVictoryView: View {
                 showContent = true
             }
             renderShareImage()
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            requestReviewIfAppropriate()
         }
+    }
+
+    /// Finishing a full 21-day cycle is peak goodwill — the natural moment
+    /// to ask for a review rather than interrupting mid-session. The system
+    /// throttles this on its own (roughly 3x/year regardless of how often
+    /// it's called), and HabitVictoryService already guarantees this screen
+    /// only ever appears once per habit, so calling it here isn't spammy.
+    private func requestReviewIfAppropriate() {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        else { return }
+        SKStoreReviewController.requestReview(in: windowScene)
     }
 
     /// Snapshots the static HabitVictoryShareCard into a UIImage for the
