@@ -265,7 +265,25 @@ final class SmokeFlowUITests: XCTestCase {
 
         // A saved entry with a mood/text today should register a 1-day streak.
         XCTAssertTrue(app.staticTexts["1-day streak"].waitForExistence(timeout: 5))
+
+        // The entry should also appear as a standing record in the list
+        // below (labeled "Today, <time>"), not just the transient "Saved"
+        // flash — otherwise saving looks like it did nothing once that fades.
+        let todayRows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Today,'"))
+        XCTAssertTrue(app.staticTexts["All Entries"].waitForExistence(timeout: 5))
+        XCTAssertTrue(todayRows.firstMatch.waitForExistence(timeout: 5))
         attach(app, name: "19-journal-today-saved")
+
+        // Saving again should ADD a second entry, not overwrite the first —
+        // the composer clears ~1.5s after the "Saved" confirmation fades.
+        Thread.sleep(forTimeInterval: 2.0)
+        app.buttons["Great"].tap()
+        editor.tap()
+        editor.typeText("Second entry of the day.")
+        saveButton.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(todayRows.count, 2, "Saving a second time should add a new entry, not replace the first")
+        attach(app, name: "19b-journal-two-entries")
 
         // The Profile button lives in Home's header, which — like every
         // inactive tab — is accessibilityHidden while Journal is active.

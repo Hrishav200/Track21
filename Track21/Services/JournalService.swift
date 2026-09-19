@@ -2,8 +2,11 @@
 //  JournalService.swift
 //  Track21
 //
-//  Owns journal entries — one per calendar day, UserDefaults-backed, same
-//  singleton + JSON-array pattern as BuddyService's chat history.
+//  Owns journal entries — an append-only log (multiple entries per day are
+//  allowed; saving never overwrites a previous entry, only `update(id:...)`
+//  does, and only for the one entry the caller explicitly opened to edit).
+//  UserDefaults-backed, same singleton + JSON-array pattern as BuddyService's
+//  chat history.
 //
 
 import Foundation
@@ -14,44 +17,34 @@ final class JournalService {
 
     private let entriesKey = "Track21JournalEntries"
 
-    /// All entries, most recent day first.
+    /// All entries, most recent first. Multiple entries can share a
+    /// calendar day — JournalLogic's streak calc groups by day, not by
+    /// entry count.
     private(set) var entries: [JournalEntry] = []
 
     private init() {
         load()
     }
 
-    var todaysEntry: JournalEntry? {
-        entry(for: Date())
-    }
-
-    func entry(for date: Date, calendar: Calendar = .current) -> JournalEntry? {
-        let day = calendar.startOfDay(for: date)
-        return entries.first { calendar.isDate($0.date, inSameDayAs: day) }
-    }
-
-    /// Creates or updates the entry for the given day. Empty text with no
-    /// mood is still saved as a valid (blank) entry — the caller decides
-    /// whether that's worth doing (JournalView disables Save in that case).
+    /// Always creates a brand-new entry — this is the "Save Entry" action,
+    /// never an overwrite of whatever you last wrote today.
     @discardableResult
-    func save(text: String, mood: JournalMood?, for date: Date = Date(), userId: UUID? = nil) -> JournalEntry {
-        let calendar = Calendar.current
-        let day = calendar.startOfDay(for: date)
-
-        if let index = entries.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: day) }) {
-            entries[index].text = text
-            entries[index].mood = mood
-            entries[index].updatedAt = Date()
-            let updated = entries[index]
-            persist()
-            return updated
-        }
-
-        let newEntry = JournalEntry(date: day, text: text, mood: mood, userId: userId)
-        entries.append(newEntry)
-        entries.sort { $0.date > $1.date }
+    func add(text: String, mood: JournalMood?, date: Date = Date(), userId: UUID? = nil) -> JournalEntry {
+        let newEntry = JournalEntry(date: date, text: text, mood: mood, userId: userId)
+        entries.insert(newEntry, at: 0)
+        entries.sort { $0.createdAt > $1.createdAt }
         persist()
         return newEntry
+    }
+
+    /// Updates one specific entry by id — used only when the user has
+    /// explicitly opened that entry (via the "All Entries" list) to edit it.
+    func update(id: UUID, text: String, mood: JournalMood?) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[index].text = text
+        entries[index].mood = mood
+        entries[index].updatedAt = Date()
+        persist()
     }
 
     func delete(_ entry: JournalEntry) {
@@ -67,7 +60,7 @@ final class JournalService {
     private func load() {
         if let data = UserDefaults.standard.data(forKey: entriesKey),
            let decoded = try? JSONDecoder().decode([JournalEntry].self, from: data) {
-            entries = decoded.sorted { $0.date > $1.date }
+            entries = decoded.sorted { $0.createdAt > $1.createdAt }
         }
     }
 

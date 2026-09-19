@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import UIKit
 internal import Auth
 
 struct JournalView: View {
@@ -21,11 +22,8 @@ struct JournalView: View {
     @State private var todayText: String = ""
     @State private var todayMood: JournalMood?
     @State private var selectedEntry: JournalEntry?
+    @State private var justSaved = false
     @FocusState private var isEditorFocused: Bool
-
-    private var pastEntries: [JournalEntry] {
-        journalService.entries.filter { !Calendar.current.isDateInToday($0.date) }
-    }
 
     private var journalStreak: Int {
         JournalLogic.currentStreak(entries: journalService.entries)
@@ -42,17 +40,23 @@ struct JournalView: View {
                         header
                         todayCard
 
-                        if pastEntries.isEmpty {
+                        if journalService.entries.isEmpty {
                             emptyPastState
                         } else {
-                            pastEntriesSection
+                            entriesSection
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 60)
                     .padding(.bottom, 100)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                // .interactively's drag-tracking gesture recognizer is a
+                // known culprit for swallowing the first tap on a button
+                // right as the keyboard settles — BuddyChatView hit the
+                // same text-input-plus-button-in-scrollable-content shape
+                // and already settled on .immediately for exactly that
+                // reason, so this follows the same precedent.
+                .scrollDismissesKeyboard(.immediately)
                 .onChange(of: isEditorFocused) { _, isFocused in
                     guard isFocused else { return }
                     // Deferred a tick so the keyboard's safe-area inset has
@@ -68,12 +72,11 @@ struct JournalView: View {
                 }
             }
         }
-        .onAppear(perform: loadToday)
         .sheet(item: $selectedEntry) { entry in
             JournalEntryDetailView(
                 entry: entry,
                 onSave: { text, mood in
-                    journalService.save(text: text, mood: mood, for: entry.date, userId: authService.currentUser?.id)
+                    journalService.update(id: entry.id, text: text, mood: mood)
                 },
                 onDelete: {
                     journalService.delete(entry)
@@ -143,30 +146,40 @@ struct JournalView: View {
             .cornerRadius(12)
 
             Button(action: saveToday) {
-                Text("Save Entry")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(AppTheme.primary.gradient)
-                    .cornerRadius(14)
+                HStack(spacing: 6) {
+                    if justSaved {
+                        Image(systemName: "checkmark")
+                    }
+                    Text(justSaved ? "Saved" : "Save Entry")
+                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background((justSaved ? Color.green : AppTheme.primary).gradient)
+                .cornerRadius(14)
             }
             .disabled(!hasUnsavedContent)
             .opacity(hasUnsavedContent ? 1 : 0.5)
             .id("journalSaveButton")
+            .animation(.easeInOut(duration: 0.2), value: justSaved)
         }
         .padding(18)
         .statsCardStyle(cornerRadius: 20)
     }
 
-    private var pastEntriesSection: some View {
+    /// Every saved entry, today included — shown as a standing record right
+    /// below the "Today" composer so saving produces visible, persistent
+    /// proof (not just a transient "Saved" flash that fades and leaves the
+    /// screen looking exactly like before you wrote anything).
+    private var entriesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Past Entries")
+            Text("All Entries")
                 .font(.system(.headline, design: .rounded))
 
             VStack(spacing: 4) {
-                ForEach(pastEntries) { entry in
-                    pastEntryRow(entry)
+                ForEach(journalService.entries) { entry in
+                    entryRow(entry)
                 }
             }
         }
@@ -174,8 +187,16 @@ struct JournalView: View {
         .statsCardStyle(cornerRadius: 20)
     }
 
-    private func pastEntryRow(_ entry: JournalEntry) -> some View {
-        Button {
+    private func entryRow(_ entry: JournalEntry) -> some View {
+        let isToday = Calendar.current.isDateInToday(entry.date)
+        // Multiple entries can share a day now, so today's rows also show a
+        // time — otherwise two entries from today would both just say
+        // "Today" with no way to tell them apart in the list.
+        let dateLabel = isToday
+            ? "Today, \(entry.createdAt.formatted(date: .omitted, time: .shortened))"
+            : entry.date.formatted(date: .abbreviated, time: .omitted)
+
+        return Button {
             selectedEntry = entry
         } label: {
             HStack(spacing: 12) {
@@ -186,7 +207,7 @@ struct JournalView: View {
                     .clipShape(Circle())
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                    Text(dateLabel)
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
@@ -206,7 +227,7 @@ struct JournalView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(entry.date.formatted(date: .abbreviated, time: .omitted)), \(entry.mood?.label ?? "no mood recorded"), \(entry.text.isEmpty ? "no note" : entry.text)")
+        .accessibilityLabel("\(dateLabel), \(entry.mood?.label ?? "no mood recorded"), \(entry.text.isEmpty ? "no note" : entry.text)")
     }
 
     private var emptyPastState: some View {
@@ -215,7 +236,7 @@ struct JournalView: View {
                 .font(.system(size: 40))
                 .foregroundColor(.gray.opacity(0.4))
                 .accessibilityHidden(true)
-            Text("Your past entries will show up here")
+            Text("Your entries will show up here")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -227,15 +248,21 @@ struct JournalView: View {
         !todayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || todayMood != nil
     }
 
-    private func loadToday() {
-        guard let existing = journalService.todaysEntry else { return }
-        todayText = existing.text
-        todayMood = existing.mood
-    }
-
     private func saveToday() {
-        journalService.save(text: todayText, mood: todayMood, for: Date(), userId: authService.currentUser?.id)
+        journalService.add(text: todayText, mood: todayMood, date: Date(), userId: authService.currentUser?.id)
         isEditorFocused = false
+
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        justSaved = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            justSaved = false
+            // Clear only after the confirmation fades, so the card doesn't
+            // blank out from under the user mid-checkmark — ready for a new
+            // entry rather than looking like it's still "editing" this one.
+            todayText = ""
+            todayMood = nil
+        }
     }
 }
 

@@ -2,9 +2,12 @@
 //  JournalEntry.swift
 //  Track21
 //
-//  One reflection per calendar day — freeform text plus an optional mood.
-//  Local-only for now (same reasoning as Habit's reminderTime/frozenDates):
-//  no journal_entries table/sync exists yet, so entries don't cross devices.
+//  A single journal entry — freeform text plus an optional mood. Multiple
+//  entries can share a calendar day (JournalService.add never overwrites a
+//  previous one); `date` marks which day an entry belongs to for streak
+//  purposes, `createdAt` is the actual moment it was written. Local-only
+//  for now (same reasoning as Habit's reminderTime/frozenDates): no
+//  journal_entries table/sync exists yet, so entries don't cross devices.
 //
 
 import Foundation
