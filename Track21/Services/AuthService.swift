@@ -12,41 +12,65 @@ import AuthenticationServices
 @Observable
 class AuthService {
     var currentUser: User?
-    var isAuthenticated: Bool { currentUser != nil }
+    var isAuthenticated: Bool { currentUser != nil || isGuest }
+    var isGuest = false
     var isLoading = false
     var errorMessage: String?
     
     private let supabase = SupabaseConfig.client
-    
-    init() {
-        Task {
-            await checkSession()
-        }
-    }
-    
+    private static let hasLaunchedKey = "Track21HasLaunched"
+
     func checkSession() async {
+        // If the app was deleted and reinstalled, the Keychain still holds the old
+        // session but UserDefaults is wiped. Detect this and clear the stale session.
+        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: Self.hasLaunchedKey)
+        if !hasLaunchedBefore {
+            UserDefaults.standard.set(true, forKey: Self.hasLaunchedKey)
+            try? await supabase.auth.signOut()
+            currentUser = nil
+            return
+        }
+
+        // Use a timeout so the UI doesn't freeze on slow networks
         do {
-            let session = try await supabase.auth.session
-            currentUser = session.user
+            let session = try await withThrowingTaskGroup(of: User.self) { group in
+                group.addTask {
+                    let session = try await self.supabase.auth.session
+                    return session.user
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 3_000_000_000) // 3 second timeout
+                    throw CancellationError()
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+            currentUser = session
         } catch {
             currentUser = nil
         }
     }
     
-    func signUp(email: String, password: String, username: String) async throws {
+    func signUp(email: String, password: String, fullName: String) async throws {
         isLoading = true
         errorMessage = nil
-        
+
+        let defaultUsername = email.components(separatedBy: "@").first ?? email
+
         do {
-            // First, sign up with Supabase Auth
+            // Sign up with metadata so the Supabase trigger can populate the profile
             let response = try await supabase.auth.signUp(
                 email: email,
-                password: password
+                password: password,
+                data: [
+                    "username": .string(defaultUsername),
+                    "full_name": .string(fullName)
+                ]
             )
 
             // Check if this is a genuinely new user
             // Supabase returns an empty identities array if the email already exists
-            // (to prevent email enumeration attacks)
             guard let identities = response.user.identities, !identities.isEmpty else {
                 isLoading = false
                 errorMessage = "An account with this email already exists. Please sign in."
@@ -55,24 +79,15 @@ class AuthService {
 
             currentUser = response.user
 
-            // Then, create the user profile with username
+            // Also upsert the profile in case the trigger didn't set all fields
             let userId = response.user.id
             let profileService = ProfileService()
-            
-            // Check if username is available
-            let isAvailable = try await profileService.isUsernameAvailable(username)
-            guard isAvailable else {
-                errorMessage = "Username is already taken"
-                isLoading = false
-                throw NSError(domain: "Track21", code: 409, userInfo: [NSLocalizedDescriptionKey: "Username is already taken"])
-            }
-            
-            // Create profile
             _ = try await profileService.createProfile(
                 userId: userId,
-                username: username
+                username: defaultUsername,
+                fullName: fullName.isEmpty ? nil : fullName
             )
-            
+
             isLoading = false
         } catch {
             isLoading = false
@@ -120,7 +135,15 @@ class AuthService {
         }
     }
     
+    func continueAsGuest() {
+        isGuest = true
+    }
+
     func signOut() async throws {
+        if isGuest {
+            isGuest = false
+            return
+        }
         try await supabase.auth.signOut()
         currentUser = nil
     }

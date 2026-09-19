@@ -26,7 +26,24 @@ final class Habit: Codable, Identifiable {
     var createdAt: Date
     var updatedAt: Date?
     var deletedAt: Date?
-    
+    /// Time-of-day for a daily reminder notification. Only the hour/minute
+    /// are used. `nil` means no reminder is scheduled. Local-only — there's
+    /// no `reminder_time` column in Supabase, so this doesn't sync across
+    /// devices (local notifications wouldn't carry over anyway).
+    ///
+    /// Mutually exclusive with `reminderIntervalMinutes` — at most one is
+    /// ever set; the UI enforces that by clearing the other when switching
+    /// reminder modes.
+    var reminderTime: Date?
+    /// Repeats a reminder every N minutes throughout the day instead of
+    /// once at a fixed time (e.g. "every 4 hours"). `nil` means this mode
+    /// isn't active. Local-only, same reasoning as `reminderTime`.
+    var reminderIntervalMinutes: Int?
+    /// Days protected by a streak freeze — missed, but don't break the
+    /// streak. Set by StreakFreezeService, not by the user directly.
+    /// Local-only, same reasoning as reminderTime.
+    var frozenDates: [Date]
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -39,8 +56,11 @@ final class Habit: Codable, Identifiable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case deletedAt = "deleted_at"
+        case reminderTime = "reminder_time"
+        case reminderIntervalMinutes = "reminder_interval_minutes"
+        case frozenDates = "frozen_dates"
     }
-    
+
     // MARK: - Initializer
     init(
         id: UUID = UUID(),
@@ -53,7 +73,10 @@ final class Habit: Codable, Identifiable {
         syncStatus: SyncStatus = .pending,
         createdAt: Date = Date(),
         updatedAt: Date? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        reminderTime: Date? = nil,
+        reminderIntervalMinutes: Int? = nil,
+        frozenDates: [Date] = []
     ) {
         self.id = id
         self.name = name
@@ -66,8 +89,11 @@ final class Habit: Codable, Identifiable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt
+        self.reminderTime = reminderTime
+        self.reminderIntervalMinutes = reminderIntervalMinutes
+        self.frozenDates = frozenDates.map { Calendar.current.startOfDay(for: $0) }
     }
-    
+
     // MARK: - Codable
     required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -82,8 +108,11 @@ final class Habit: Codable, Identifiable {
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
+        reminderTime = try container.decodeIfPresent(Date.self, forKey: .reminderTime)
+        reminderIntervalMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderIntervalMinutes)
+        frozenDates = try container.decodeIfPresent([Date].self, forKey: .frozenDates) ?? []
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -97,6 +126,9 @@ final class Habit: Codable, Identifiable {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
+        try container.encodeIfPresent(reminderTime, forKey: .reminderTime)
+        try container.encodeIfPresent(reminderIntervalMinutes, forKey: .reminderIntervalMinutes)
+        try container.encode(frozenDates, forKey: .frozenDates)
     }
     
     // MARK: - Computed Properties
@@ -119,7 +151,93 @@ final class Habit: Codable, Identifiable {
         let end = Calendar.current.startOfDay(for: endDate)
         return today <= end
     }
-    
+
+    /// Number of days from `startDate` through today (or `endDate`, whichever is sooner).
+    var elapsedDaysCount: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: min(Date(), endDate))
+        guard end >= start else { return 0 }
+        return (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+    }
+
+    /// Total number of days marked complete within the 21-day window.
+    var totalCompletions: Int {
+        let start = Calendar.current.startOfDay(for: startDate)
+        let end = Calendar.current.startOfDay(for: endDate)
+        return completedDates.filter { $0 >= start && $0 <= end }.count
+    }
+
+    /// Fraction of elapsed days (0...1) that were completed.
+    var completionRate: Double {
+        guard elapsedDaysCount > 0 else { return 0 }
+        return Double(totalCompletions) / Double(elapsedDaysCount)
+    }
+
+    /// Total number of days protected by a streak freeze within the 21-day
+    /// window. A day is either completed, frozen, or missed — never more
+    /// than one — so `totalCompletions + totalFrozen` is the count of days
+    /// that didn't break the streak.
+    var totalFrozen: Int {
+        let start = Calendar.current.startOfDay(for: startDate)
+        let end = Calendar.current.startOfDay(for: endDate)
+        return frozenDates.filter { $0 >= start && $0 <= end }.count
+    }
+
+    /// Consecutive completed-or-frozen days counting back from today. A day
+    /// that hasn't ended yet (i.e. today, if not yet completed) doesn't
+    /// break the streak. A frozen day counts as continuing the streak
+    /// (protects it) but isn't a real completion.
+    var currentStreak: Int {
+        currentStreak(asOf: Date())
+    }
+
+    /// Same as `currentStreak`, but anchored at an arbitrary reference date
+    /// instead of "now" — used by StreakFreezeLogic to check whether a
+    /// habit had an active streak going into a specific missed day.
+    func currentStreak(asOf referenceDate: Date) -> Int {
+        let calendar = Calendar.current
+        var day = calendar.startOfDay(for: referenceDate)
+        let start = calendar.startOfDay(for: startDate)
+
+        if !isCompleted(on: day), !isFrozen(on: day) {
+            guard day > start, let previousDay = calendar.date(byAdding: .day, value: -1, to: day) else { return 0 }
+            day = previousDay
+        }
+
+        var streak = 0
+        while day >= start, isCompleted(on: day) || isFrozen(on: day) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { break }
+            day = previous
+        }
+        return streak
+    }
+
+    /// Longest run of consecutive completed-or-frozen days within the
+    /// 21-day window so far.
+    var bestStreak: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: min(Date(), endDate))
+        guard end >= start else { return 0 }
+
+        var best = 0
+        var current = 0
+        var day = start
+        while day <= end {
+            if isCompleted(on: day) || isFrozen(on: day) {
+                current += 1
+                best = max(best, current)
+            } else {
+                current = 0
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return best
+    }
+
     // MARK: - Methods
     
     func isCompleted(on date: Date) -> Bool {
@@ -131,7 +249,13 @@ final class Habit: Codable, Identifiable {
     func isCompletedToday() -> Bool {
         isCompleted(on: Date())
     }
-    
+
+    func isFrozen(on date: Date) -> Bool {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        return frozenDates.contains { calendar.startOfDay(for: $0) == targetDay }
+    }
+
     func toggleCompletion(for date: Date) {
         let calendar = Calendar.current
         let targetDay = calendar.startOfDay(for: date)
@@ -166,12 +290,17 @@ final class Habit: Codable, Identifiable {
         if isCompleted(on: date) {
             return .completed
         }
-        
+
+        // Protected by a streak freeze
+        if isFrozen(on: date) {
+            return .frozen
+        }
+
         // Future (not yet reached)
         if targetDay > today {
             return .future
         }
-        
+
         // Past and not completed = missed
         return .missed
     }
@@ -181,6 +310,7 @@ final class Habit: Codable, Identifiable {
 
 enum HabitDateStatus {
     case completed  // Green - tracked and completed
+    case frozen     // Ice blue - missed, but protected by a streak freeze
     case missed     // Amber - day passed, not tracked
     case future     // Empty - not yet reached
     case outside    // Outside the 21-day period
