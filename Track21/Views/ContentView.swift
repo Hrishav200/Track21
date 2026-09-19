@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UIKit
 internal import Auth
 
 struct ContentView: View {
@@ -14,7 +13,6 @@ struct ContentView: View {
     @Bindable var viewModel: HabitViewModel
     @Bindable var profileService: ProfileService
     @State private var selectedTab = 0
-    @State private var lastRealTab = 0
     @State private var showingAddHabit = false
     @State private var showingProfile = false
     @State private var showGuestBanner = true
@@ -172,67 +170,86 @@ struct ContentView: View {
         }
     }
 
-    /// iOS 26's `Tab(role: .search)` is the only way to get a compact tab
-    /// group with a separate, detached round accessory next to it (the
-    /// same layout Photos uses for its search button) — a plain tab bar
-    /// always stretches to fill the width regardless of item count, so
-    /// there's no room beside it for a manually-overlaid button. The "Add"
-    /// tab never actually shows a destination: selecting it immediately
-    /// opens the Add Habit sheet and snaps back to whichever tab was
-    /// showing, same trick as the previous "Add" tab used.
-    @ViewBuilder
+    /// A fully custom bottom bar rather than SwiftUI's native `TabView`
+    /// chrome. Two things it was tried with first both failed to reliably
+    /// place the "+" as a separate section actually *in* the bar rather
+    /// than floating above it: iOS 26's `Tab(role: .search)` is supposed to
+    /// split a detached accessory out from the main group, but on-device it
+    /// can silently degrade into an ordinary sixth tab item; a manually
+    /// overlaid button positioned by guessing at the system tab bar's
+    /// height/margins landed visibly above the bar instead of level with
+    /// it, since that geometry isn't something SwiftUI exposes to measure.
+    /// Owning the whole row ourselves — a capsule with the four tab buttons
+    /// plus a separate circular "+" — makes "in the bar, same row" true by
+    /// construction instead of something to line up against guesswork.
+    ///
+    /// All four screens stay mounted simultaneously (opacity-toggled, not
+    /// switched via `if`/`switch`) so each keeps its own scroll position
+    /// and state while off-screen, matching what TabView already did.
     private var tabs: some View {
-        if #available(iOS 26.0, *) {
-            TabView(selection: $selectedTab) {
-                Tab("Home", systemImage: "house.fill", value: 0) {
-                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
-                }
-                Tab("Stats", systemImage: "chart.bar.fill", value: 1) {
-                    StatsView(viewModel: viewModel)
-                }
-                Tab("Buddy", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
-                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
-                }
-                Tab("Achievements", systemImage: "trophy.fill", value: 3) {
-                    AchievementsView(viewModel: viewModel)
-                }
-                Tab("Add", systemImage: "plus", value: 4, role: .search) {
-                    Color.clear
-                }
+        VStack(spacing: 0) {
+            ZStack {
+                HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
+                    .tabPageStyle(isActive: selectedTab == 0)
+                StatsView(viewModel: viewModel)
+                    .tabPageStyle(isActive: selectedTab == 1)
+                BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
+                    .tabPageStyle(isActive: selectedTab == 2)
+                AchievementsView(viewModel: viewModel)
+                    .tabPageStyle(isActive: selectedTab == 3)
             }
-            .onChange(of: selectedTab) { _, newValue in
-                if newValue == 4 {
-                    showingAddHabit = true
-                    selectedTab = lastRealTab
-                } else {
-                    lastRealTab = newValue
-                }
-            }
-        } else {
-            ZStack(alignment: .bottomTrailing) {
-                TabView(selection: $selectedTab) {
-                    HomeView(viewModel: viewModel, authService: authService, onProfileTap: { showingProfile = true }, onNavigateToStats: { selectedTab = 1 })
-                        .tag(0)
-                        .tabItem { Label("Home", systemImage: "house.fill") }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    StatsView(viewModel: viewModel)
-                        .tag(1)
-                        .tabItem { Label("Stats", systemImage: "chart.bar.fill") }
-
-                    BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
-                        .tag(2)
-                        .tabItem { Label("Buddy", systemImage: "bubble.left.and.bubble.right.fill") }
-
-                    AchievementsView(viewModel: viewModel)
-                        .tag(3)
-                        .tabItem { Label("Achievements", systemImage: "trophy.fill") }
-                }
-
-                FloatingAddButton(action: { showingAddHabit = true })
-                    .padding(.trailing, 20)
-                    .padding(.bottom, bottomSafeAreaInset)
-            }
+            customTabBar
         }
+    }
+
+    private var customTabBar: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 0) {
+                tabBarButton(icon: "house.fill", label: "Home", tag: 0)
+                tabBarButton(icon: "chart.bar.fill", label: "Stats", tag: 1)
+                tabBarButton(icon: "bubble.left.and.bubble.right.fill", label: "Buddy", tag: 2)
+                tabBarButton(icon: "trophy.fill", label: "Achievements", tag: 3)
+            }
+            .frame(height: 56)
+            .modifier(GlassBarBackground(shape: Capsule()))
+
+            Button {
+                showingAddHabit = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 56, height: 56)
+            }
+            .modifier(GlassBarBackground(shape: Circle()))
+            .accessibilityLabel("Add new habit")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+    }
+
+    private func tabBarButton(icon: String, label: String, tag: Int) -> some View {
+        let isSelected = selectedTab == tag
+        return Button {
+            selectedTab = tag
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(.caption2)
+            }
+            .foregroundColor(isSelected ? .accentColor : .secondary)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private func loadUserProfile() async {
@@ -280,45 +297,37 @@ struct ContentView: View {
             : "\(celebratingAchievements.count) achievements unlocked!"
     }
 
-    /// Read straight from the window rather than a GeometryReader, matching
-    /// HeaderView's approach — keeps this correct regardless of what any
-    /// ancestor view does with safe areas.
-    private var bottomSafeAreaInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .safeAreaInsets.bottom ?? 34
-    }
 }
 
-/// The "+" action button, detached from the tab bar into its own floating
-/// group — same Liquid Glass material (iOS 26+), tinted with the brand
-/// color, with a solid-color fallback for older OS versions.
-private struct FloatingAddButton: View {
-    let action: () -> Void
+/// Shared "Liquid Glass" surface for the custom bottom bar's two pieces
+/// (the capsule tab group and the circular "+"), parametrized by shape so
+/// one modifier serves both. Same material on iOS 26+ as the system tab
+/// bar; a frosted-material fallback for older OS versions.
+private struct GlassBarBackground<S: Shape>: ViewModifier {
+    let shape: S
 
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.title2.weight(.semibold))
-                .foregroundColor(.white)
-                .frame(width: 56, height: 56)
-                .modifier(FloatingAddButtonBackground())
-        }
-        .accessibilityLabel("Add new habit")
-    }
-}
-
-private struct FloatingAddButtonBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.glassEffect(.regular.tint(AppTheme.primary).interactive(), in: .circle)
+            content.glassEffect(.regular.interactive(), in: shape)
         } else {
             content
-                .background(AppTheme.primary)
-                .clipShape(Circle())
-                .shadow(color: AppTheme.primary.opacity(0.45), radius: 12, x: 0, y: 6)
+                .background(.ultraThinMaterial)
+                .clipShape(shape)
+                .overlay(shape.stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
         }
+    }
+}
+
+private extension View {
+    /// One tab page in the custom bar's content stack: visible+interactive
+    /// only when active, but always mounted — so switching tabs doesn't
+    /// reset scroll position or navigation state the way tearing the view
+    /// down and rebuilding it would.
+    func tabPageStyle(isActive: Bool) -> some View {
+        self
+            .opacity(isActive ? 1 : 0)
+            .allowsHitTesting(isActive)
+            .accessibilityHidden(!isActive)
     }
 }
