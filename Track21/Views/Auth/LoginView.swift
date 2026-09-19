@@ -30,18 +30,33 @@ struct LoginView: View {
                 backgroundBlobs
 
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 32) {
-                            heroSection
-                            valuePropsRow
+                    GeometryReader { geometry in
+                        ScrollView {
+                            VStack(spacing: 28) {
+                                Spacer(minLength: 24)
 
-                            formSection
-                                .padding(.horizontal, 24)
+                                heroSection
 
-                            trustFooter
+                                formSection
+                                    .padding(.horizontal, 24)
+
+                                Spacer(minLength: 24)
+                            }
+                            // A plain offset rather than uneven Spacer
+                            // minLengths — two Spacers with surplus flex
+                            // space split it evenly regardless of their
+                            // minLengths, so biasing the split that way
+                            // doesn't actually move anything. This nudges
+                            // the already-centered content up by a fixed
+                            // amount instead.
+                            .offset(y: -36)
+                            // Stretch to fill the screen so the two Spacers
+                            // can center the content — while still letting
+                            // the ScrollView do its normal job if the
+                            // keyboard shrinks the available room below that.
+                            .frame(minHeight: geometry.size.height)
+                            .padding(.vertical, 32)
                         }
-                        .padding(.top, 48)
-                        .padding(.bottom, 32)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: focusedField) {
@@ -95,21 +110,25 @@ struct LoginView: View {
 
     /// A badge that mirrors the app's own icon (the 21-day streak grid)
     /// instead of a generic system glyph, so the login screen carries the
-    /// same brand mark as the home screen.
+    /// same brand mark as the home screen. Deliberately compact — the value
+    /// props row and trust-footer sentence that used to sit below this were
+    /// cut entirely: the onboarding carousel right after sign-in already
+    /// covers "build streaks / track progress / 21-day method", so login
+    /// doesn't need to sell the app again before letting someone in.
     private var heroSection: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(AppTheme.primary)
-                    .frame(width: 112, height: 112)
-                    .shadow(color: AppTheme.primary.opacity(0.35), radius: 20, x: 0, y: 10)
+                    .frame(width: 72, height: 72)
+                    .shadow(color: AppTheme.primary.opacity(0.3), radius: 14, x: 0, y: 6)
 
-                VStack(spacing: 7) {
-                    HStack(spacing: 7) {
+                VStack(spacing: 5) {
+                    HStack(spacing: 5) {
                         streakCell(checked: false)
                         streakCell(checked: false)
                     }
-                    HStack(spacing: 7) {
+                    HStack(spacing: 5) {
                         streakCell(checked: false)
                         streakCell(checked: true)
                     }
@@ -117,60 +136,23 @@ struct LoginView: View {
             }
 
             Text("Track21")
-                .font(.largeTitle)
+                .font(.title2)
                 .fontWeight(.bold)
-
-            Text("Build habits in 21 days")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
     }
 
     @ViewBuilder
     private func streakCell(checked: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
             .fill(checked ? Color.white : Color.white.opacity(0.35))
-            .frame(width: 24, height: 24)
+            .frame(width: 16, height: 16)
             .overlay {
                 if checked {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundColor(AppTheme.primary)
                 }
             }
-    }
-
-    // MARK: - Value props
-
-    private var valuePropsRow: some View {
-        HStack(spacing: 0) {
-            valueProp(icon: "flame.fill", label: "Build\nstreaks")
-            valueProp(icon: "chart.bar.fill", label: "Track\nprogress")
-            valueProp(icon: "target", label: "21-day\nmethod")
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private func valueProp(icon: String, label: String) -> some View {
-        VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(AppTheme.primary.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
-            }
-            Text(label)
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(label.replacingOccurrences(of: "\n", with: " "))
     }
 
     // MARK: - Form
@@ -178,7 +160,7 @@ struct LoginView: View {
     private var formSection: some View {
         VStack(spacing: 16) {
             TextField("Email", text: $email)
-                .textFieldStyle(.roundedBorder)
+                .authFieldStyle()
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
                 .focused($focusedField, equals: .email)
@@ -186,13 +168,13 @@ struct LoginView: View {
 
             if isSignUp {
                 TextField("Full Name", text: $fullName)
-                    .textFieldStyle(.roundedBorder)
+                    .authFieldStyle()
                     .focused($focusedField, equals: .fullName)
                     .id(Field.fullName)
             }
 
             SecureField("Password", text: $password)
-                .textFieldStyle(.roundedBorder)
+                .authFieldStyle()
                 .focused($focusedField, equals: .password)
                 .id(Field.password)
 
@@ -215,6 +197,7 @@ struct LoginView: View {
                         .font(.headline)
                 }
             }
+            .buttonStyle(.plain)
             .frame(maxWidth: .infinity)
             .padding()
             .background(AppTheme.primary)
@@ -232,6 +215,7 @@ struct LoginView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+                .buttonStyle(.plain)
             }
 
             Button(action: {
@@ -242,6 +226,7 @@ struct LoginView: View {
                     .font(.subheadline)
                     .foregroundColor(AppTheme.primary)
             }
+            .buttonStyle(.plain)
 
             Button(action: {
                 authService.continueAsGuest()
@@ -250,22 +235,27 @@ struct LoginView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
+            .buttonStyle(.plain)
             .padding(.top, 4)
         }
     }
+}
 
-    // MARK: - Footer
-
-    private var trustFooter: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "lock.fill")
-                .font(.caption2)
-            Text("Your habits stay private — sign in anytime to back them up")
-                .font(.caption2)
-                .multilineTextAlignment(.center)
-        }
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 40)
+private extension View {
+    /// Replaces `.textFieldStyle(.roundedBorder)`, whose default fill reads
+    /// as near-invisible against this app's dark-mode background (barely
+    /// distinguishable black-on-near-black). Uses the same card-surface
+    /// color as every other input field in the app, so it stays legible in
+    /// both themes instead of relying on the system default.
+    func authFieldStyle() -> some View {
+        self
+            .padding(12)
+            .background(AppTheme.cardBackground)
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
     }
 }
 
@@ -304,7 +294,7 @@ struct ResetPasswordSheet: View {
 
                     VStack(spacing: 16) {
                         TextField("Email", text: $email)
-                            .textFieldStyle(.roundedBorder)
+                            .authFieldStyle()
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
 
@@ -324,6 +314,7 @@ struct ResetPasswordSheet: View {
                                     .font(.headline)
                             }
                         }
+                        .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(AppTheme.primary)

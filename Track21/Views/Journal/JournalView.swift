@@ -93,6 +93,20 @@ struct JournalView: View {
             Text("A little reflection goes a long way")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+
+            // Unlike habits, journal entries aren't synced yet — true
+            // regardless of guest vs. signed-in, unlike the guest-only
+            // banner on Home, so this can't just ride along with that.
+            // Worth saying plainly rather than letting someone lose weeks
+            // of entries to a reinstall with no warning it was ever a risk.
+            HStack(spacing: 5) {
+                Image(systemName: "iphone")
+                    .font(.caption2)
+                Text("Entries stay on this device — not backed up yet")
+                    .font(.caption2)
+            }
+            .foregroundColor(.secondary)
+            .padding(.top, 2)
         }
     }
 
