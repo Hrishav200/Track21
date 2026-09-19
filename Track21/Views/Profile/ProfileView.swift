@@ -32,6 +32,7 @@ struct ProfileView: View {
         NavigationView {
             List {
                 profileSection
+                achievementsSection
                 premiumSection
                 freezeSection
                 buddySection
@@ -123,6 +124,26 @@ struct ProfileView: View {
                     .font(.caption)
                     .foregroundColor(AppTheme.primary)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var achievementsSection: some View {
+        Section {
+            NavigationLink {
+                AchievementsView(viewModel: viewModel)
+            } label: {
+                HStack(spacing: 12) {
+                    iconBadge("trophy.fill", color: .yellow)
+                    Text("Achievements")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text("\(achievementSummary.unlocked) of \(achievementSummary.total)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .accessibilityLabel("Achievements")
         }
     }
 
@@ -305,6 +326,11 @@ struct ProfileView: View {
                     .foregroundColor(AppTheme.primary)
             )
             .accessibilityLabel("Profile avatar: \(initials)")
+    }
+
+    private var achievementSummary: (unlocked: Int, total: Int) {
+        let all = AchievementService.shared.refresh(habits: viewModel.habits).all
+        return (all.filter(\.isUnlocked).count, all.count)
     }
 
     private var formattedRefillDate: String {

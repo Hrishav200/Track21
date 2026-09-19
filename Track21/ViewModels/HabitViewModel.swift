@@ -177,6 +177,7 @@ class HabitViewModel {
         UserDefaults.standard.removeObject(forKey: userNameKey)
         AchievementService.shared.clearData()
         HabitVictoryService.shared.clearData()
+        JournalService.shared.clearData()
     }
     
     private func saveHabits() {

@@ -195,7 +195,7 @@ struct ContentView: View {
                     .tabPageStyle(isActive: selectedTab == 1)
                 BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
                     .tabPageStyle(isActive: selectedTab == 2)
-                AchievementsView(viewModel: viewModel)
+                JournalView(viewModel: viewModel, authService: authService)
                     .tabPageStyle(isActive: selectedTab == 3)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -210,7 +210,7 @@ struct ContentView: View {
                 tabBarButton(icon: "house.fill", label: "Home", tag: 0)
                 tabBarButton(icon: "chart.bar.fill", label: "Stats", tag: 1)
                 tabBarButton(icon: "bubble.left.and.bubble.right.fill", label: "Buddy", tag: 2)
-                tabBarButton(icon: "trophy.fill", label: "Achievements", tag: 3)
+                tabBarButton(icon: "book.fill", label: "Journal", tag: 3)
             }
             .frame(height: 56)
             .modifier(GlassBarBackground(shape: Capsule()))

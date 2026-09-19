@@ -5,6 +5,14 @@
 //  Grid of badges derived from AchievementService — nothing here decides
 //  unlock state itself, it just displays whatever the service computes.
 //
+//  Pushed from Profile rather than its own tab (see ContentView, which
+//  replaced this with JournalView as the fourth tab) — badges still
+//  unlock and still get a celebration toast in the background, but
+//  browsing the full grid is a "check in occasionally" action, not a
+//  "look at every day" one, so it no longer needs a whole tab slot.
+//  Sized down accordingly: smaller tiles, no big duplicate title (the
+//  pushed navigation bar already provides one).
+//
 
 import SwiftUI
 
@@ -13,7 +21,7 @@ struct AchievementsView: View {
     @State private var achievements: [Achievement] = []
     @State private var selectedAchievement: Achievement?
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 16), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
 
     var body: some View {
         ZStack {
@@ -21,10 +29,12 @@ struct AchievementsView: View {
                 .edgesIgnoringSafeArea(.all)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("\(achievements.filter(\.isUnlocked).count) of \(achievements.count) unlocked")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
 
-                    LazyVGrid(columns: columns, spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(achievements) { achievement in
                             AchievementBadgeCard(achievement: achievement)
                                 .onTapGesture { selectedAchievement = achievement }
@@ -32,26 +42,17 @@ struct AchievementsView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 60)
-                .padding(.bottom, 100)
+                .padding(.top, 16)
+                .padding(.bottom, 40)
             }
         }
+        .navigationTitle("Achievements")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear { refresh() }
         .onChange(of: viewModel.habits.count) { refresh() }
         .onChange(of: viewModel.lastSyncDate) { refresh() }
         .sheet(item: $selectedAchievement) { achievement in
             AchievementDetailView(achievement: achievement)
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Achievements")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            Text("\(achievements.filter(\.isUnlocked).count) of \(achievements.count) unlocked")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
     }
 
@@ -64,38 +65,38 @@ private struct AchievementBadgeCard: View {
     let achievement: Achievement
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ZStack(alignment: .bottomTrailing) {
                 Circle()
                     .fill(achievement.isUnlocked ? AppTheme.primary.opacity(0.15) : Color.gray.opacity(0.12))
-                    .frame(width: 64, height: 64)
+                    .frame(width: 52, height: 52)
 
                 Text(achievement.emoji)
-                    .font(.system(size: 28))
+                    .font(.system(size: 22))
                     .grayscale(achievement.isUnlocked ? 0 : 1)
                     .opacity(achievement.isUnlocked ? 1 : 0.4)
-                    .frame(width: 64, height: 64)
+                    .frame(width: 52, height: 52)
 
                 if !achievement.isUnlocked {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 11))
+                        .font(.system(size: 9))
                         .foregroundColor(.secondary)
-                        .padding(4)
+                        .padding(3)
                         .background(.ultraThinMaterial, in: Circle())
                 }
             }
 
             Text(achievement.title)
-                .font(.caption)
+                .font(.caption2)
                 .fontWeight(.medium)
                 .foregroundColor(achievement.isUnlocked ? .primary : .secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(AppTheme.cardBackground)
-        .cornerRadius(16)
+        .cornerRadius(14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(achievement.title), \(achievement.isUnlocked ? "unlocked" : "locked")")
     }

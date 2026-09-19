@@ -215,6 +215,56 @@ final class SmokeFlowUITests: XCTestCase {
         attach(app, name: "11-profile-freeze-wallet")
     }
 
+    /// Journal replaced Achievements as the fourth tab (see ContentView) —
+    /// this exercises writing today's entry there, then confirms
+    /// Achievements is still reachable, just relocated to Profile.
+    @MainActor
+    func testJournalEntryAndAchievementsFromProfile() throws {
+        let app = launchApp()
+
+        let continueAsGuest = app.buttons["Continue as Guest"]
+        XCTAssertTrue(continueAsGuest.waitForExistence(timeout: 10))
+        continueAsGuest.tap()
+
+        let journalTab = app.buttons["Journal"]
+        XCTAssertTrue(journalTab.waitForExistence(timeout: 10))
+        journalTab.tap()
+
+        XCTAssertTrue(app.staticTexts["Journal"].waitForExistence(timeout: 5))
+        attach(app, name: "18-journal-empty")
+
+        let goodMoodButton = app.buttons["Good"]
+        XCTAssertTrue(goodMoodButton.waitForExistence(timeout: 5))
+        goodMoodButton.tap()
+
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        editor.typeText("Got a run in before work.")
+
+        app.buttons["Save Entry"].tap()
+
+        // A saved entry with a mood/text today should register a 1-day streak.
+        XCTAssertTrue(app.staticTexts["1-day streak"].waitForExistence(timeout: 5))
+        attach(app, name: "19-journal-today-saved")
+
+        // The Profile button lives in Home's header, which — like every
+        // inactive tab — is accessibilityHidden while Journal is active.
+        app.buttons["Home"].tap()
+
+        // Achievements moved to Profile — confirm it's still reachable there.
+        let profileButton = app.buttons["Profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 5))
+        profileButton.tap()
+
+        let achievementsRow = app.buttons["Achievements"]
+        XCTAssertTrue(achievementsRow.waitForExistence(timeout: 5))
+        achievementsRow.tap()
+
+        XCTAssertTrue(app.navigationBars["Achievements"].waitForExistence(timeout: 5))
+        attach(app, name: "20-achievements-from-profile")
+    }
+
     /// Seeds a habit with a completed/frozen/missed mix (via
     /// -uitest-seed-frozen-habit) so the streak-freeze UI — the journey
     /// grid's ice-blue cell, the weekly calendar's snowflake, and the
