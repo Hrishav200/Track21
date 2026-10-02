@@ -21,9 +21,41 @@ struct LoginView: View {
     @State private var resetEmail = ""
     @State private var resetMessage: String?
     @State private var isResetting = false
+    @State private var showCredentials = false
     @FocusState private var focusedField: Field?
 
     var body: some View {
+        Group {
+            if showCredentials {
+                credentialsScreen
+            } else {
+                WelcomeLandingView(
+                    onLogInOrSignUp: {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showCredentials = true
+                        }
+                    },
+                    onContinueAsGuest: {
+                        authService.continueAsGuest()
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showingResetPassword) {
+            ResetPasswordSheet(
+                email: $resetEmail,
+                message: $resetMessage,
+                isResetting: $isResetting,
+                authService: authService,
+                isPresented: $showingResetPassword
+            )
+        }
+    }
+
+    /// Existing email/password form, reached from the welcome ring via
+    /// "Log In or Sign Up". Guest stays on the welcome screen so UI tests
+    /// that tap "Continue as Guest" still find it immediately.
+    private var credentialsScreen: some View {
         NavigationView {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
@@ -73,15 +105,22 @@ struct LoginView: View {
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showingResetPassword) {
-            ResetPasswordSheet(
-                email: $resetEmail,
-                message: $resetMessage,
-                isResetting: $isResetting,
-                authService: authService,
-                isPresented: $showingResetPassword
-            )
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        focusedField = nil
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            showCredentials = false
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                    }
+                    .accessibilityIdentifier("authBackToWelcome")
+                }
+            }
         }
     }
 
