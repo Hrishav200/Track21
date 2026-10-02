@@ -15,13 +15,25 @@ struct HomeView: View {
     var onProfileTap: () -> Void = {}
     var onNavigateToStats: () -> Void = {}
 
+    /// Always resolve from the live habits array so the week strip cannot
+    /// keep painting a stale Habit instance after sync replaces objects.
+    private var liveSelectedHabit: Habit? {
+        guard let id = selectedHabit?.id else { return nil }
+        return viewModel.habits.first(where: { $0.id == id })
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 HeaderView(viewModel: viewModel, onProfileTap: onProfileTap)
 
                 VStack(spacing: 16) {
-                    DayProgressCard(habit: selectedHabit, habits: viewModel.habits, selectedDate: $selectedDate, onTap: onNavigateToStats)
+                    DayProgressCard(
+                        viewModel: viewModel,
+                        habit: liveSelectedHabit,
+                        selectedDate: $selectedDate,
+                        onTap: onNavigateToStats
+                    )
 
                     MyHabitsSection(
                         viewModel: viewModel,
@@ -45,6 +57,9 @@ struct HomeView: View {
             refreshSelectedHabit()
         }
         .onChange(of: viewModel.lastSyncDate) {
+            refreshSelectedHabit()
+        }
+        .onChange(of: viewModel.completionRevision) {
             refreshSelectedHabit()
         }
     }

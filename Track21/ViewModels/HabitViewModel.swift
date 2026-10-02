@@ -36,6 +36,10 @@ class HabitViewModel {
     /// then clears it back to nil. See HabitVictoryLogic/HabitVictoryService.
     var recentHabitVictory: Habit?
 
+    /// Bumped on every completion toggle so summary calendar / progress
+    /// UI that only tracks the `habits` array identity still redraws.
+    var completionRevision: Int = 0
+
     init() {
         loadHabits()
         loadUserName()
@@ -84,17 +88,31 @@ class HabitViewModel {
     }
 
     func toggleHabitCompletion(_ habit: Habit, for date: Date) {
-        if let index = habits.firstIndex(where: { $0.id == habit.id }) {
-            habits[index].toggleCompletion(for: date)
-            saveHabits()
-            checkForNewAchievements()
-            checkForHabitVictory(habits[index])
+        // Always resolve by id against the live array so a stale ForEach
+        // reference (e.g. after sync replaced objects) cannot toggle the
+        // wrong habit — or silently no-op while the UI looks wrong.
+        guard let index = habits.firstIndex(where: { $0.id == habit.id }) else { return }
+        let target = habits[index]
+        let day = Calendar.current.startOfDay(for: date)
+        let before = target.isCompleted(on: day)
+        target.toggleCompletion(for: date)
+        let after = target.isCompleted(on: day)
+        // Touch the array so @Observable subscribers that only track `habits`
+        // (not nested Habit.completedDates) still refresh section membership.
+        habits = Array(habits)
+        completionRevision += 1
+        // Match DayProgressCard: every listed habit counts, not just the 21-day window.
+        let shown = habits
+        let fully = !shown.isEmpty && shown.allSatisfy { $0.isCompleted(on: day) }
+        print("[Track21][toggle] \(target.name) \(before)->\(after) day=\(day) shown=\(shown.count) fullyComplete=\(fully) rev=\(completionRevision)")
+        saveHabits()
+        checkForNewAchievements()
+        checkForHabitVictory(target)
 
-            // Trigger sync if user is logged in
-            if let userId = habits[index].userId {
-                Task {
-                    await syncWithCloud(userId: userId)
-                }
+        // Trigger sync if user is logged in
+        if let userId = target.userId {
+            Task {
+                await syncWithCloud(userId: userId)
             }
         }
     }
@@ -129,20 +147,80 @@ class HabitViewModel {
         }
     }
     
+    private static func completionFingerprint(_ habit: Habit) -> String {
+        let calendar = Calendar.current
+        let days = habit.completedDates
+            .map { String(calendar.startOfDay(for: $0).timeIntervalSince1970) }
+            .sorted()
+            .joined(separator: ",")
+        return days
+    }
+
     func syncWithCloud(userId: UUID) async {
+        // Snapshot completions at kickoff so we can detect toggles that land
+        // while this sync is in flight (e.g. undo after the day went green).
+        let fingerprintsAtStart = Dictionary(uniqueKeysWithValues: habits.map {
+            ($0.id, Self.completionFingerprint($0))
+        })
         do {
-            let syncedHabits = try await syncService.syncHabits(habits: habits, userId: userId)
-            habits = syncedHabits.map { habit in
-                let updated = habit
-                updated.syncStatus = .synced
-                return updated
+            let outcome = try await syncService.syncHabits(habits: habits, userId: userId)
+            switch outcome {
+            case .deferred:
+                // Another sync is in flight. Leave syncStatus alone so
+                // pending completions are still uploaded on the follow-up.
+                break
+            case .completed(let syncedHabits):
+                // Always keep the live in-memory instances the UI is bound to.
+                // Sync used to return remote clones; assigning those back could
+                // resurrect a just-undone day even after fingerprint mend.
+                let liveById = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+                var needsFollowUp = false
+                var merged: [Habit] = []
+                for synced in syncedHabits {
+                    if let live = liveById[synced.id] {
+                        let startPrint = fingerprintsAtStart[synced.id] ?? ""
+                        let livePrint = Self.completionFingerprint(live)
+                        let syncedPrint = Self.completionFingerprint(synced)
+                        // Local completions always win for days the user touched.
+                        if livePrint != syncedPrint {
+                            // Keep live.completedDates as-is (already correct).
+                            live.syncStatus = .pending
+                            needsFollowUp = true
+                            print("[Track21][sync] keep-live \(live.name) live!=synced followUp")
+                        } else if livePrint != startPrint {
+                            live.syncStatus = .pending
+                            needsFollowUp = true
+                            print("[Track21][sync] mid-sync toggle \(live.name) followUp")
+                        } else {
+                            // Carry any non-completion fields sync may have refreshed.
+                            live.name = synced.name
+                            live.goal = synced.goal
+                            live.color = synced.color
+                            live.startDate = synced.startDate
+                            live.userId = synced.userId ?? live.userId
+                            live.updatedAt = synced.updatedAt
+                            live.syncStatus = .synced
+                        }
+                        merged.append(live)
+                    } else {
+                        synced.syncStatus = .synced
+                        merged.append(synced)
+                    }
+                }
+                habits = merged
+                completionRevision += 1
+                print("[Track21][sync] applied rev=\(completionRevision) habits=\(habits.count) followUp=\(needsFollowUp)")
+                saveHabits()
+                if needsFollowUp {
+                    syncService.pendingSyncUserId = userId
+                }
             }
-            saveHabits()
 
             // If another sync was queued while we were syncing, run it now
-            if let pending = syncService.pendingSync {
-                syncService.pendingSync = nil
-                await syncWithCloud(userId: pending.userId)
+            // against the live habits array (not a deferred snapshot).
+            if let pendingUserId = syncService.pendingSyncUserId {
+                syncService.pendingSyncUserId = nil
+                await syncWithCloud(userId: pendingUserId)
             }
         } catch {
             // Sync error is exposed via syncError property

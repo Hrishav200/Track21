@@ -102,7 +102,8 @@ final class Habit: Codable, Identifiable {
         goal = try container.decode(String.self, forKey: .goal)
         color = try container.decode(String.self, forKey: .color)
         startDate = try container.decode(Date.self, forKey: .startDate)
-        completedDates = try container.decodeIfPresent([Date].self, forKey: .completedDates) ?? []
+        let rawCompleted = try container.decodeIfPresent([Date].self, forKey: .completedDates) ?? []
+        completedDates = Array(Set(rawCompleted.map { Calendar.current.startOfDay(for: $0) })).sorted()
         userId = try container.decodeIfPresent(UUID.self, forKey: .userId)
         syncStatus = try container.decodeIfPresent(SyncStatus.self, forKey: .syncStatus) ?? .pending
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
@@ -110,7 +111,8 @@ final class Habit: Codable, Identifiable {
         deletedAt = try container.decodeIfPresent(Date.self, forKey: .deletedAt)
         reminderTime = try container.decodeIfPresent(Date.self, forKey: .reminderTime)
         reminderIntervalMinutes = try container.decodeIfPresent(Int.self, forKey: .reminderIntervalMinutes)
-        frozenDates = try container.decodeIfPresent([Date].self, forKey: .frozenDates) ?? []
+        let rawFrozen = try container.decodeIfPresent([Date].self, forKey: .frozenDates) ?? []
+        frozenDates = Array(Set(rawFrozen.map { Calendar.current.startOfDay(for: $0) })).sorted()
     }
 
     func encode(to encoder: Encoder) throws {
@@ -259,10 +261,11 @@ final class Habit: Codable, Identifiable {
     func toggleCompletion(for date: Date) {
         let calendar = Calendar.current
         let targetDay = calendar.startOfDay(for: date)
-        
-        if let index = completedDates.firstIndex(where: { calendar.startOfDay(for: $0) == targetDay }) {
-            completedDates.remove(at: index)
-        } else {
+        let wasCompleted = completedDates.contains { calendar.startOfDay(for: $0) == targetDay }
+        // Remove every matching day (duplicates from sync/ISO round-trips
+        // used to leave a leftover date so the calendar stayed green).
+        completedDates.removeAll { calendar.startOfDay(for: $0) == targetDay }
+        if !wasCompleted {
             completedDates.append(targetDay)
         }
         syncStatus = .pending

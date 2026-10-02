@@ -8,11 +8,16 @@
 import SwiftUI
 
 struct DayProgressCard: View {
+    /// Live view model — must observe the same source as the habit list so
+    /// undoing a completion immediately redraws the week strip.
+    @Bindable var viewModel: HabitViewModel
     let habit: Habit?
-    let habits: [Habit]
     @Binding var selectedDate: Date
     var onTap: () -> Void = {}
     @State private var weekOffset: Int = 0
+
+    private var habits: [Habit] { viewModel.habits }
+    private var completionRevision: Int { viewModel.completionRevision }
 
     private var isToday: Bool {
         Calendar.current.isDateInToday(selectedDate)
@@ -76,6 +81,8 @@ struct DayProgressCard: View {
     // MARK: - Body
 
     var body: some View {
+        // Touch revision so Observation always invalidates this card on toggle.
+        let _ = completionRevision
         VStack(spacing: 16) {
             if let habit = habit {
                 habitDetailHeader(habit: habit)
@@ -87,8 +94,10 @@ struct DayProgressCard: View {
 
             if let habit = habit {
                 WeeklyCalendarView(habit: habit, selectedDate: $selectedDate, weekOffset: weekOffset)
+                    .id("habit-cal-\(habit.id)-\(completionRevision)-\(habitCompletionSignature(habit))")
             } else {
                 summaryCalendarRow
+                    .id("summary-cal-\(completionRevision)-\(fullCompletionSignature)")
             }
         }
         .padding()
@@ -142,6 +151,7 @@ struct DayProgressCard: View {
                     )
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.4), value: progress)
+                    .animation(.easeInOut(duration: 0.4), value: completionRevision)
 
                 VStack(spacing: 1) {
                     Text("\(completedTodayCount)")
@@ -218,70 +228,147 @@ struct DayProgressCard: View {
 
     // MARK: - Summary calendar (all habits overview per day)
 
-    private var summaryCalendarRow: some View {
-        let weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        let dates = summaryWeekDates
+    private var weekDays: [String] { ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] }
 
+    /// Fingerprint of every habit's completions — changes on any undo.
+    private var fullCompletionSignature: String {
+        let calendar = Calendar.current
+        return habits.map { habit in
+            let days = habit.completedDates
+                .map { String(Int(calendar.startOfDay(for: $0).timeIntervalSince1970)) }
+                .sorted()
+                .joined(separator: ",")
+            return "\(habit.id.uuidString):\(days)"
+        }
+        .joined(separator: "|")
+    }
+
+    private func habitCompletionSignature(_ habit: Habit) -> String {
+        let calendar = Calendar.current
+        let days = habit.completedDates
+            .map { String(Int(calendar.startOfDay(for: $0).timeIntervalSince1970)) }
+            .sorted()
+            .joined(separator: ",")
+        let frozen = habit.frozenDates
+            .map { String(Int(calendar.startOfDay(for: $0).timeIntervalSince1970)) }
+            .sorted()
+            .joined(separator: ",")
+        return "\(days);\(frozen)"
+    }
+
+    /// Green only when EVERY habit shown in the list for that day is
+    /// completed — same set as the "3 of 4" progress ring.
+    private func isFullyComplete(on date: Date) -> Bool {
+        let shown = habitsShown(on: date)
+        guard !shown.isEmpty else { return false }
+        return shown.allSatisfy { $0.isCompleted(on: date) }
+    }
+
+    private func isFullyFrozen(on date: Date) -> Bool {
+        let shown = habitsShown(on: date)
+        guard !shown.isEmpty else { return false }
+        let completed = shown.filter { $0.isCompleted(on: date) }.count
+        let frozen = shown.filter { $0.isFrozen(on: date) }.count
+        return frozen > 0 && completed + frozen == shown.count && completed < shown.count
+    }
+
+    private var summaryCalendarRow: some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
         return HStack(spacing: 12) {
-            ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
+            ForEach(summaryWeekDates, id: \.timeIntervalSince1970) { date in
+                let target = calendar.startOfDay(for: date)
+                let shown = habitsShown(on: date)
+                let fullyComplete = isFullyComplete(on: date)
+                let fullyFrozen = isFullyFrozen(on: date)
+                let completedCount = shown.filter { $0.isCompleted(on: date) }.count
+                let frozenCount = shown.filter { $0.isFrozen(on: date) }.count
+                let fill = summaryColor(
+                    target: target,
+                    today: today,
+                    activeCount: shown.count,
+                    fullyComplete: fullyComplete,
+                    fullyFrozen: fullyFrozen,
+                    completedCount: completedCount
+                )
+                let weekday = weekDays[calendar.component(.weekday, from: date) - 1]
+                let namesSig = shown.map { "\($0.id.uuidString.prefix(4)):\($0.isCompleted(on: date))" }.joined(separator: ",")
+                let cellId = "\(Int(target.timeIntervalSince1970))-\(fullyComplete)-\(completedCount)/\(shown.count)-\(frozenCount)-\(completionRevision)-\(namesSig)"
+
                 VStack(spacing: 4) {
-                    Text(weekDays[Calendar.current.component(.weekday, from: date) - 1])
+                    Text(weekday)
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
                     Circle()
-                        .fill(summaryColor(for: date))
+                        .fill(fill)
                         .frame(width: 36, height: 36)
-                        .overlay(
-                            summaryDayOverlay(for: date)
-                        )
+                        .overlay(summaryOverlay(
+                            target: target,
+                            today: today,
+                            activeCount: shown.count,
+                            fullyComplete: fullyComplete,
+                            fullyFrozen: fullyFrozen,
+                            dayNumber: "\(calendar.component(.day, from: date))",
+                            textColor: summaryTextColor(
+                                target: target,
+                                today: today,
+                                activeCount: shown.count,
+                                completedCount: completedCount,
+                                frozenCount: frozenCount
+                            )
+                        ))
                         .overlay(
                             Circle()
-                                .stroke(
-                                    Calendar.current.isDate(date, inSameDayAs: selectedDate) ? Color.primary : Color.clear,
-                                    lineWidth: 2.5
-                                )
+                                .stroke(calendar.isDate(date, inSameDayAs: selectedDate) ? Color.primary : Color.clear, lineWidth: 2.5)
                                 .frame(width: 40, height: 40)
                         )
                         .onTapGesture {
-                            if isSummaryTappable(date: date) {
+                            if target <= today && !shown.isEmpty {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    selectedDate = Calendar.current.startOfDay(for: date)
+                                    selectedDate = target
                                 }
                             }
                         }
+                }
+                .id(cellId)
+                .onAppear {
+                    if calendar.isDateInToday(date) {
+                        print("[Track21][calendar] today fullyComplete=\(fullyComplete) completed=\(completedCount)/\(shown.count) shown=\(shown.map(\.name)) rev=\(completionRevision)")
+                    }
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func summaryDayOverlay(for date: Date) -> some View {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let target = calendar.startOfDay(for: date)
-        let active = activeHabits(on: date)
-        let completed = active.filter { $0.isCompleted(on: date) }.count
-        let frozen = active.filter { $0.isFrozen(on: date) }.count
-
-        if target <= today && !active.isEmpty && completed == active.count && active.count > 0 {
+    private func summaryOverlay(
+        target: Date,
+        today: Date,
+        activeCount: Int,
+        fullyComplete: Bool,
+        fullyFrozen: Bool,
+        dayNumber: String,
+        textColor: Color
+    ) -> some View {
+        if target <= today && activeCount > 0 && fullyComplete {
             Image(systemName: "checkmark")
                 .font(.caption.weight(.bold))
                 .foregroundColor(.white)
-        } else if target <= today && !active.isEmpty && frozen > 0 && completed + frozen == active.count {
+        } else if target <= today && activeCount > 0 && fullyFrozen {
             Image(systemName: "snowflake")
                 .font(.caption.weight(.bold))
                 .foregroundColor(.white)
         } else {
-            Text("\(calendar.component(.day, from: date))")
+            Text(dayNumber)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(summaryTextColor(for: date))
+                .foregroundColor(textColor)
         }
     }
 
     private var summaryWeekDates: [Date] {
         let calendar = Calendar.current
-        let today = Date()
+        let today = calendar.startOfDay(for: Date())
         let weekday = calendar.component(.weekday, from: today)
         guard let startOfWeek = calendar.date(byAdding: .day, value: -(weekday - 1), to: today),
               let startOfOffsetWeek = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: startOfWeek) else {
@@ -292,59 +379,46 @@ struct DayProgressCard: View {
         }
     }
 
-    private func activeHabits(on date: Date) -> [Habit] {
-        let calendar = Calendar.current
-        let target = calendar.startOfDay(for: date)
-        return habits.filter { habit in
-            let start = calendar.startOfDay(for: habit.startDate)
-            let end = calendar.startOfDay(for: habit.endDate)
-            return target >= start && target <= end
-        }
+    /// Habits that count toward the day strip — must match what
+    /// MyHabitsSection / the progress ring show for that day.
+    /// Previously filtered to each habit's 21-day window, which made Fri
+    /// stay green when an expired habit (still listed) was incomplete.
+    private func habitsShown(on date: Date) -> [Habit] {
+        _ = date // same set for every day while the list shows all habits
+        return habits
     }
 
-    private func summaryColor(for date: Date) -> Color {
-        let calendar = Calendar.current
-        let target = calendar.startOfDay(for: date)
-        let today = calendar.startOfDay(for: Date())
 
+    private func summaryColor(
+        target: Date,
+        today: Date,
+        activeCount: Int,
+        fullyComplete: Bool,
+        fullyFrozen: Bool,
+        completedCount: Int
+    ) -> Color {
         if target > today { return Color.gray.opacity(0.15) }
+        if activeCount == 0 { return Color.gray.opacity(0.1) }
 
-        let active = activeHabits(on: date)
-        if active.isEmpty { return Color.gray.opacity(0.1) }
+        // Green ONLY when every shown habit is complete that day.
+        if fullyComplete { return AppTheme.primary }
 
-        let completed = active.filter { $0.isCompleted(on: date) }.count
-        if completed == active.count { return AppTheme.primary }
+        if fullyFrozen { return AppTheme.frozen }
 
-        // Every active habit that wasn't completed was protected by a
-        // streak freeze — the day is safe, not "missed", so it reads as
-        // frozen rather than amber.
-        let frozen = active.filter { $0.isFrozen(on: date) }.count
-        if frozen > 0 && completed + frozen == active.count { return AppTheme.frozen }
-
-        if completed > 0 { return AppTheme.missed }
+        if completedCount > 0 { return AppTheme.missed }
         return Color.gray.opacity(0.25)
     }
 
-    private func summaryTextColor(for date: Date) -> Color {
-        let calendar = Calendar.current
-        let target = calendar.startOfDay(for: date)
-        let today = calendar.startOfDay(for: Date())
-
+    private func summaryTextColor(
+        target: Date,
+        today: Date,
+        activeCount: Int,
+        completedCount: Int,
+        frozenCount: Int
+    ) -> Color {
         if target > today { return .gray }
-
-        let active = activeHabits(on: date)
-        if active.isEmpty { return .gray.opacity(0.5) }
-
-        let completed = active.filter { $0.isCompleted(on: date) }.count
-        let frozen = active.filter { $0.isFrozen(on: date) }.count
-        return (completed > 0 || frozen > 0) ? .white : .gray
-    }
-
-    private func isSummaryTappable(date: Date) -> Bool {
-        let calendar = Calendar.current
-        let target = calendar.startOfDay(for: date)
-        let today = calendar.startOfDay(for: Date())
-        return target <= today && !activeHabits(on: date).isEmpty
+        if activeCount == 0 { return .gray.opacity(0.5) }
+        return (completedCount > 0 || frozenCount > 0) ? .white : .gray
     }
 
     // MARK: - Shared
@@ -361,8 +435,4 @@ struct DayProgressCard: View {
                 .foregroundColor(AppTheme.primary)
         }
     }
-}
-
-#Preview {
-    DayProgressCard(habit: nil, habits: [], selectedDate: .constant(Date()))
 }

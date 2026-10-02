@@ -66,8 +66,11 @@ struct MyHabitsSection: View {
     private var habitsContent: some View {
         // Incomplete habits section
         if !incompleteHabits.isEmpty {
-            ForEach(incompleteHabits) { habit in
-                habitRow(for: habit, isCompleted: false)
+            ForEach(incompleteHabits, id: \.id) { habit in
+                // Derive completion from the model — never hardcode from
+                // section membership. Hardcoded flags + animated section moves
+                // let SwiftUI reuse a card with the wrong checked state.
+                habitRow(for: habit)
             }
         }
 
@@ -75,8 +78,8 @@ struct MyHabitsSection: View {
         if !completedHabits.isEmpty {
             completedSectionHeader
 
-            ForEach(completedHabits) { habit in
-                habitRow(for: habit, isCompleted: true)
+            ForEach(completedHabits, id: \.id) { habit in
+                habitRow(for: habit)
             }
         }
     }
@@ -91,17 +94,22 @@ struct MyHabitsSection: View {
     }
 
     @ViewBuilder
-    private func habitRow(for habit: Habit, isCompleted: Bool) -> some View {
+    private func habitRow(for habit: Habit) -> some View {
+        let isCompleted = habit.isCompleted(on: selectedDate)
         HabitCardView(
             habit: habit,
             isCompleted: isCompleted,
             isSelected: selectedHabit?.id == habit.id,
             onToggle: {
+                let habitId = habit.id
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.toggleHabitCompletion(habit, for: selectedDate)
+                    if let live = viewModel.habits.first(where: { $0.id == habitId }) {
+                        viewModel.toggleHabitCompletion(live, for: selectedDate)
+                    }
                 }
             }
         )
+        .id(habit.id)
         .transition(habitTransition(isCompleted: isCompleted))
         .onTapGesture {
             handleTap(for: habit)

@@ -13,15 +13,25 @@ class SyncService {
     var isSyncing = false
     var lastSyncDate: Date?
     var syncError: String?
-    var pendingSync: (habits: [Habit], userId: UUID)?
+    /// When a sync is requested while one is already running, we only
+    /// remember that a follow-up is needed for this user. The drain always
+    /// reads the live `HabitViewModel.habits` array — never a stale snapshot.
+    var pendingSyncUserId: UUID?
 
     private let supabase = SupabaseConfig.client
 
-    func syncHabits(habits: [Habit], userId: UUID) async throws -> [Habit] {
+    /// Distinct from a completed sync so callers do not mark habits `.synced`
+    /// when the work was only queued.
+    enum SyncOutcome {
+        case deferred
+        case completed([Habit])
+    }
+
+    func syncHabits(habits: [Habit], userId: UUID) async throws -> SyncOutcome {
         if isSyncing {
-            // Queue this sync so it runs after the current one finishes
-            pendingSync = (habits, userId)
-            return habits
+            // Queue a follow-up; do NOT treat this as a successful sync.
+            pendingSyncUserId = userId
+            return .deferred
         }
 
         isSyncing = true
@@ -49,7 +59,7 @@ class SyncService {
             let habitsWithDates = try await syncCompletedDates(habits: mergedHabits)
 
             lastSyncDate = Date()
-            return habitsWithDates
+            return .completed(habitsWithDates)
 
         } catch {
             syncError = error.localizedDescription
@@ -70,54 +80,42 @@ class SyncService {
     }
     
     private func mergeHabits(local: [Habit], remote: [Habit]) -> [Habit] {
-        var merged: [UUID: Habit] = [:]
+        let remoteById: [UUID: Habit] = Dictionary(uniqueKeysWithValues: remote.map { ($0.id, $0) })
 
-        // frozenDates has no column on the server yet — HabitDTO doesn't
-        // carry it, so every remote habit decodes with frozenDates == [].
-        // Remember each habit's local value up front so it can be restored
-        // after merging, no matter which side "wins" below. Otherwise a
-        // sync round-trip silently erases an applied streak freeze the
-        // moment the habit's syncStatus flips back to .synced and the
-        // server's bumped updated_at makes the (freeze-less) remote copy
-        // look newer.
-        let localFrozenDates = Dictionary(uniqueKeysWithValues: local.map { ($0.id, $0.frozenDates) })
-
-        // Add all remote habits
-        for habit in remote {
-            merged[habit.id] = habit
-        }
-
-        // Merge local habits (local wins if updated_at is newer or pending)
-        for localHabit in local {
-            if let remoteHabit = merged[localHabit.id] {
-                // Keep newer version
-                if localHabit.syncStatus == .pending ||
-                   (localHabit.updatedAt ?? Date.distantPast) > (remoteHabit.updatedAt ?? Date.distantPast) {
-                    merged[localHabit.id] = localHabit
-                }
-            } else {
-                // New local habit
-                merged[localHabit.id] = localHabit
-            }
-        }
-
-        for (id, dates) in localFrozenDates {
-            merged[id]?.frozenDates = dates
-        }
-
-        // Preserve local order; append remote-only leftovers by createdAt then id
+        // CRITICAL: always keep the local Habit *instance* when it exists.
+        // Replacing it with a remote clone (even after seeding completedDates)
+        // meant syncCompletedDates mutated a different object than the UI —
+        // an undo on the live instance was invisible to sync, which then
+        // wrote the old green day back into the array on assign.
         var ordered: [Habit] = []
+        var seen = Set<UUID>()
         for localHabit in local {
-            if let habit = merged.removeValue(forKey: localHabit.id) {
-                ordered.append(habit)
+            seen.insert(localHabit.id)
+            if let remoteHabit = remoteById[localHabit.id] {
+                // Optionally refresh metadata from remote when local isn't pending
+                // and remote looks newer — but never replace the instance or its
+                // completed/frozen dates (those live only on-device / in completed_dates).
+                if localHabit.syncStatus != .pending,
+                   (remoteHabit.updatedAt ?? Date.distantPast) > (localHabit.updatedAt ?? Date.distantPast) {
+                    localHabit.name = remoteHabit.name
+                    localHabit.goal = remoteHabit.goal
+                    localHabit.color = remoteHabit.color
+                    localHabit.startDate = remoteHabit.startDate
+                    localHabit.userId = remoteHabit.userId ?? localHabit.userId
+                    localHabit.updatedAt = remoteHabit.updatedAt
+                }
             }
+            ordered.append(localHabit)
         }
-        let leftovers = merged.values.sorted { lhs, rhs in
-            if lhs.createdAt != rhs.createdAt {
-                return lhs.createdAt < rhs.createdAt
+
+        let leftovers = remoteById.values
+            .filter { !seen.contains($0.id) }
+            .sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt {
+                    return lhs.createdAt < rhs.createdAt
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
             }
-            return lhs.id.uuidString < rhs.id.uuidString
-        }
         ordered.append(contentsOf: leftovers)
         return ordered
     }
@@ -169,10 +167,9 @@ class SyncService {
     }
     
     private func syncCompletedDates(habits: [Habit]) async throws -> [Habit] {
-        var updatedHabits = habits
         let calendar = Calendar.current
 
-        for (index, habit) in habits.enumerated() {
+        for habit in habits {
             do {
                 // Fetch remote completed dates
                 let remoteDates: [CompletedDate] = try await supabase
@@ -182,60 +179,59 @@ class SyncService {
                     .execute()
                     .value
 
-                let localDays = Set(habit.completedDates.map { calendar.startOfDay(for: $0) })
                 let remoteDays = Set(remoteDates.map { calendar.startOfDay(for: $0.completedDate) })
 
-                if habit.syncStatus == .pending {
-                    // User just changed something on THIS device — local wins
-
-                    // Upload local dates not in remote
-                    for date in localDays {
-                        if !remoteDays.contains(date) {
-                            let newDate = CompletedDate(
-                                id: UUID(),
-                                habitId: habit.id,
-                                completedDate: date,
-                                createdAt: Date()
-                            )
-                            do {
-                                try await supabase
-                                    .from("completed_dates")
-                                    .upsert(newDate)
-                                    .execute()
-                            } catch {
-                                // Continue syncing other dates even if one fails
-                            }
-                        }
-                    }
-
-                    // Delete remote dates that were removed locally (undo)
-                    for remoteDate in remoteDates {
-                        let day = calendar.startOfDay(for: remoteDate.completedDate)
-                        if !localDays.contains(day) {
-                            do {
-                                try await supabase
-                                    .from("completed_dates")
-                                    .delete()
-                                    .eq("id", value: remoteDate.id)
-                                    .execute()
-                            } catch {
-                                // Continue syncing even if one delete fails
-                            }
-                        }
-                    }
-
-                    updatedHabits[index].completedDates = Array(localDays).sorted()
-                } else {
-                    // No local changes — accept remote as source of truth
-                    updatedHabits[index].completedDates = Array(remoteDays).sorted()
+                // Re-read AFTER the await — user may have undone mid-flight.
+                func liveDaySet() -> Set<Date> {
+                    Set(habit.completedDates.map { calendar.startOfDay(for: $0) })
                 }
+
+                var liveDays = liveDaySet()
+                for date in liveDays where !remoteDays.contains(date) {
+                    let newDate = CompletedDate(
+                        id: UUID(),
+                        habitId: habit.id,
+                        completedDate: date,
+                        createdAt: Date()
+                    )
+                    do {
+                        try await supabase
+                            .from("completed_dates")
+                            .upsert(newDate)
+                            .execute()
+                    } catch {
+                        // Continue syncing other dates even if one fails
+                    }
+                }
+
+                // Re-read again before deletes so an undo during upserts is honored.
+                liveDays = liveDaySet()
+                for remoteDate in remoteDates {
+                    let day = calendar.startOfDay(for: remoteDate.completedDate)
+                    if !liveDays.contains(day) {
+                        do {
+                            try await supabase
+                                .from("completed_dates")
+                                .delete()
+                                .eq("id", value: remoteDate.id)
+                                .execute()
+                        } catch {
+                            // Continue syncing even if one delete fails
+                        }
+                    }
+                }
+
+                // Never write remote/union back — local instance already has truth.
+                // Deduplicate only.
+                let finalDays = liveDaySet()
+                habit.completedDates = Array(finalDays).sorted()
 
             } catch {
                 // Continue syncing other habits even if one fails
             }
         }
 
-        return updatedHabits
+        return habits
     }
     
     func deleteHabit(_ habit: Habit) async throws {
