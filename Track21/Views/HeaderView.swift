@@ -12,7 +12,7 @@ struct HeaderView: View {
     var onProfileTap: () -> Void = {}
 
     private var bestStreak: Int {
-        viewModel.habits.map(\.currentStreak).max() ?? 0
+        viewModel.activeHabits.map(\.currentStreak).max() ?? 0
     }
 
     /// Read directly from the window rather than a GeometryReader — the
@@ -53,7 +53,7 @@ struct HeaderView: View {
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.9))
 
-                if bestStreak > 0 || !viewModel.habits.isEmpty {
+                if bestStreak > 0 || !viewModel.activeHabits.isEmpty {
                     HStack(spacing: 8) {
                         if bestStreak > 0 {
                             HStack(spacing: 4) {
@@ -70,7 +70,7 @@ struct HeaderView: View {
                             .cornerRadius(20)
                         }
 
-                        if !viewModel.habits.isEmpty {
+                        if !viewModel.activeHabits.isEmpty {
                             HStack(spacing: 4) {
                                 Image(systemName: "snowflake")
                                     .font(.caption2)

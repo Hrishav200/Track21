@@ -35,26 +35,40 @@ struct MiniJourneyStrip: View {
     }
 
     private func cell(for dayNumber: Int, width: CGFloat) -> some View {
-        let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: habit.startDate) ?? habit.startDate
+        // Always anchor off start-of-day so the strip lines up with
+        // totalCompletions / cycleDaysAccounted window math.
+        let start = calendar.startOfDay(for: habit.startDate)
+        let date = calendar.date(byAdding: .day, value: dayNumber - 1, to: start) ?? start
         let status = habit.dateStatus(for: date)
         let isToday = calendar.isDateInToday(date)
 
         return RoundedRectangle(cornerRadius: 2)
-            .fill(color(for: status))
+            .fill(fillColor(for: status))
             .frame(width: width, height: 14)
             .overlay(
                 RoundedRectangle(cornerRadius: 2)
-                    .stroke(isToday ? habitColor : Color.clear, lineWidth: 1.2)
+                    .stroke(strokeColor(for: status, isToday: isToday), lineWidth: isToday ? 1.2 : 1)
             )
     }
 
-    private func color(for status: HabitDateStatus) -> Color {
+    private func fillColor(for status: HabitDateStatus) -> Color {
         switch status {
         case .completed: return habitColor
         case .frozen: return AppTheme.frozen
-        case .missed: return AppTheme.missed
-        case .future: return Color.gray.opacity(0.16)
-        case .outside: return Color.gray.opacity(0.1)
+        // Missed used to be solid amber — looked identical to a full
+        // orange habit completion in Trophy Case (0/21 with "21 filled").
+        case .missed: return Color.clear
+        case .future: return Color.gray.opacity(0.12)
+        case .outside: return Color.gray.opacity(0.08)
+        }
+    }
+
+    private func strokeColor(for status: HabitDateStatus, isToday: Bool) -> Color {
+        if isToday { return habitColor }
+        switch status {
+        case .missed: return AppTheme.missed.opacity(0.85)
+        case .future, .outside: return Color.gray.opacity(0.28)
+        case .completed, .frozen: return Color.clear
         }
     }
 }

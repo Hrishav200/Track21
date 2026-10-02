@@ -43,22 +43,40 @@ class HabitViewModel {
     init() {
         loadHabits()
         loadUserName()
+        cancelRemindersForArchivedHabits()
+    }
+
+    /// Finished cycles shouldn't keep firing local notifications.
+    private func cancelRemindersForArchivedHabits() {
+        for habit in archivedHabits {
+            NotificationService.shared.cancelReminder(for: habit)
+        }
     }
     
+    /// Habits still in an open, unfinished 21-day cycle — Home list source.
+    var activeHabits: [Habit] {
+        habits.filter(\.isInActiveCycle)
+    }
+
+    /// Finished or expired cycles — Trophy Case / Archive.
+    var archivedHabits: [Habit] {
+        habits.filter(\.isArchived)
+    }
+
     var todayCompletedCount: Int {
-        habits.filter { $0.isCompletedToday() }.count
+        activeHabits.filter { $0.isCompletedToday() }.count
     }
     
     var todayTotalCount: Int {
-        habits.count
+        activeHabits.count
     }
     
     var completedHabits: [Habit] {
-        habits.filter { $0.isCompletedToday() }
+        activeHabits.filter { $0.isCompletedToday() }
     }
     
     var incompleteHabits: [Habit] {
-        habits.filter { !$0.isCompletedToday() }
+        activeHabits.filter { !$0.isCompletedToday() }
     }
     
     func addHabit(_ habit: Habit) {
@@ -88,22 +106,22 @@ class HabitViewModel {
     }
 
     func toggleHabitCompletion(_ habit: Habit, for date: Date) {
-        // Always resolve by id against the live array so a stale ForEach
-        // reference (e.g. after sync replaced objects) cannot toggle the
-        // wrong habit — or silently no-op while the UI looks wrong.
-        guard let index = habits.firstIndex(where: { $0.id == habit.id }) else { return }
-        let target = habits[index]
+        // Resolve by id + active-cycle guard via shared logic (unit-tested).
         let day = Calendar.current.startOfDay(for: date)
-        let before = target.isCompleted(on: day)
-        target.toggleCompletion(for: date)
+        let before = habits.first(where: { $0.id == habit.id })?.isCompleted(on: day) ?? false
+        guard let target = HabitCompletionSyncLogic.toggleCompletion(
+            in: habits,
+            matching: habit,
+            on: date
+        ) else { return }
         let after = target.isCompleted(on: day)
         // Touch the array so @Observable subscribers that only track `habits`
         // (not nested Habit.completedDates) still refresh section membership.
         habits = Array(habits)
         completionRevision += 1
-        // Match DayProgressCard: every listed habit counts, not just the 21-day window.
-        let shown = habits
-        let fully = !shown.isEmpty && shown.allSatisfy { $0.isCompleted(on: day) }
+        // Match DayProgressCard: only active (non-archived) habits count today.
+        let shown = activeHabits
+        let fully = HabitCompletionSyncLogic.isFullyComplete(activeHabits: shown, on: day)
         print("[Track21][toggle] \(target.name) \(before)->\(after) day=\(day) shown=\(shown.count) fullyComplete=\(fully) rev=\(completionRevision)")
         saveHabits()
         checkForNewAchievements()
@@ -124,6 +142,8 @@ class HabitViewModel {
     func checkForHabitVictory(_ habit: Habit) -> Habit? {
         guard HabitVictoryService.shared.checkForNewVictory(habit) else { return nil }
         recentHabitVictory = habit
+        // Cycle is done — stop local reminders; habit moves to Trophy Case.
+        NotificationService.shared.cancelReminder(for: habit)
         return habit
     }
 
@@ -140,6 +160,8 @@ class HabitViewModel {
     }
     
     func updateHabit(_ habit: Habit) {
+        // Finished cycles are read-only — ignore edit attempts.
+        guard habit.isInActiveCycle else { return }
         if let index = habits.firstIndex(where: { $0.id == habit.id }) {
             habits[index] = habit
             saveHabits()
@@ -147,80 +169,48 @@ class HabitViewModel {
         }
     }
     
-    private static func completionFingerprint(_ habit: Habit) -> String {
-        let calendar = Calendar.current
-        let days = habit.completedDates
-            .map { String(calendar.startOfDay(for: $0).timeIntervalSince1970) }
-            .sorted()
-            .joined(separator: ",")
-        return days
-    }
-
-    func syncWithCloud(userId: UUID) async {
+    func syncWithCloud(userId: UUID, followUpDepth: Int = 0) async {
+        // Hard cap so a pathological needsFollowUp loop can never pin MainActor.
+        let maxFollowUps = 8
         // Snapshot completions at kickoff so we can detect toggles that land
         // while this sync is in flight (e.g. undo after the day went green).
-        let fingerprintsAtStart = Dictionary(uniqueKeysWithValues: habits.map {
-            ($0.id, Self.completionFingerprint($0))
-        })
+        let fingerprintsAtStart = HabitCompletionSyncLogic.fingerprints(for: habits)
         do {
             let outcome = try await syncService.syncHabits(habits: habits, userId: userId)
             switch outcome {
             case .deferred:
-                // Another sync is in flight. Leave syncStatus alone so
-                // pending completions are still uploaded on the follow-up.
-                break
+                // Another sync is in flight. Do NOT drain pendingSyncUserId
+                // here — syncHabits returns .deferred without suspending, so
+                // recursing would busy-loop MainActor and freeze the phone
+                // (common on quick untick while tick sync is still running).
+                // The in-flight sync drains pending when it finishes.
+                print("[Track21][sync] deferred — leaving pending for in-flight owner")
+                return
             case .completed(let syncedHabits):
-                // Always keep the live in-memory instances the UI is bound to.
-                // Sync used to return remote clones; assigning those back could
-                // resurrect a just-undone day even after fingerprint mend.
-                let liveById = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
-                var needsFollowUp = false
-                var merged: [Habit] = []
-                for synced in syncedHabits {
-                    if let live = liveById[synced.id] {
-                        let startPrint = fingerprintsAtStart[synced.id] ?? ""
-                        let livePrint = Self.completionFingerprint(live)
-                        let syncedPrint = Self.completionFingerprint(synced)
-                        // Local completions always win for days the user touched.
-                        if livePrint != syncedPrint {
-                            // Keep live.completedDates as-is (already correct).
-                            live.syncStatus = .pending
-                            needsFollowUp = true
-                            print("[Track21][sync] keep-live \(live.name) live!=synced followUp")
-                        } else if livePrint != startPrint {
-                            live.syncStatus = .pending
-                            needsFollowUp = true
-                            print("[Track21][sync] mid-sync toggle \(live.name) followUp")
-                        } else {
-                            // Carry any non-completion fields sync may have refreshed.
-                            live.name = synced.name
-                            live.goal = synced.goal
-                            live.color = synced.color
-                            live.startDate = synced.startDate
-                            live.userId = synced.userId ?? live.userId
-                            live.updatedAt = synced.updatedAt
-                            live.syncStatus = .synced
-                        }
-                        merged.append(live)
-                    } else {
-                        synced.syncStatus = .synced
-                        merged.append(synced)
-                    }
-                }
-                habits = merged
+                let result = HabitCompletionSyncLogic.applyCompletedSync(
+                    liveHabits: habits,
+                    syncedHabits: syncedHabits,
+                    fingerprintsAtStart: fingerprintsAtStart
+                )
+                habits = result.habits
                 completionRevision += 1
-                print("[Track21][sync] applied rev=\(completionRevision) habits=\(habits.count) followUp=\(needsFollowUp)")
+                print("[Track21][sync] applied rev=\(completionRevision) habits=\(habits.count) followUp=\(result.needsFollowUp) depth=\(followUpDepth)")
                 saveHabits()
-                if needsFollowUp {
+                if result.needsFollowUp {
                     syncService.pendingSyncUserId = userId
                 }
             }
 
-            // If another sync was queued while we were syncing, run it now
-            // against the live habits array (not a deferred snapshot).
+            // Only reached after .completed — deferred returns above.
+            // Cap follow-up depth so a pathological needsFollowUp loop
+            // can never pin MainActor.
+            guard followUpDepth < maxFollowUps else {
+                print("[Track21][sync] follow-up depth cap hit — leaving pending")
+                return
+            }
             if let pendingUserId = syncService.pendingSyncUserId {
                 syncService.pendingSyncUserId = nil
-                await syncWithCloud(userId: pendingUserId)
+                await syncWithCloud(userId: pendingUserId, followUpDepth: followUpDepth + 1)
             }
         } catch {
             // Sync error is exposed via syncError property
@@ -232,7 +222,7 @@ class HabitViewModel {
     /// Returns the habits that got protected so the UI can show a toast.
     @discardableResult
     func protectStreaksIfNeeded() -> [Habit] {
-        let protected = StreakFreezeService.shared.protectStreaks(for: habits)
+        let protected = StreakFreezeService.shared.protectStreaks(for: activeHabits)
         if !protected.isEmpty {
             saveHabits()
             checkForNewAchievements()
@@ -246,7 +236,34 @@ class HabitViewModel {
         UserDefaults.standard.set(name, forKey: userNameKey)
     }
 
+#if DEBUG
+    /// Insert or replace a habit by stable id/name. Bypasses `updateHabit`'s
+    /// archived read-only guard so Debug can seed a finished Trophy Case cycle.
+    func debugReplaceOrInsertHabit(_ habit: Habit) {
+        if let index = habits.firstIndex(where: { $0.id == habit.id || $0.name == habit.name }) {
+            habits[index] = habit
+        } else {
+            habits.append(habit)
+        }
+        habits = Array(habits)
+        completionRevision += 1
+        saveHabits()
+        NotificationService.shared.cancelReminder(for: habit)
+        print("[Track21][debug] upsert \(habit.name) id=\(habit.id) archived=\(habit.isArchived) accounted=\(habit.cycleDaysAccounted) habits=\(habits.count)")
+    }
+
+    func debugRemoveHabit(named name: String) {
+        let victims = habits.filter { $0.name == name }
+        habits.removeAll { $0.name == name }
+        habits = Array(habits)
+        completionRevision += 1
+        saveHabits()
+        victims.forEach { NotificationService.shared.cancelReminder(for: $0) }
+    }
+#endif
+
     func clearData() {
+
         habits = []
         userName = "Friend"
         recentlyUnlockedAchievements = []

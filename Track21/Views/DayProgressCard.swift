@@ -16,7 +16,8 @@ struct DayProgressCard: View {
     var onTap: () -> Void = {}
     @State private var weekOffset: Int = 0
 
-    private var habits: [Habit] { viewModel.habits }
+    /// Home progress / week strip only count active (non-archived) cycles.
+    private var habits: [Habit] { viewModel.activeHabits }
     private var completionRevision: Int { viewModel.completionRevision }
 
     private var isToday: Bool {

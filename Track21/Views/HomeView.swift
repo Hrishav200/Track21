@@ -19,7 +19,7 @@ struct HomeView: View {
     /// keep painting a stale Habit instance after sync replaces objects.
     private var liveSelectedHabit: Habit? {
         guard let id = selectedHabit?.id else { return nil }
-        return viewModel.habits.first(where: { $0.id == id })
+        return viewModel.activeHabits.first(where: { $0.id == id })
     }
 
     var body: some View {
@@ -69,7 +69,8 @@ struct HomeView: View {
     /// - If the selected habit was deleted, clears the selection to show the summary.
     private func refreshSelectedHabit() {
         guard let current = selectedHabit else { return }
-        if let refreshed = viewModel.habits.first(where: { $0.id == current.id }) {
+        // Drop selection once a habit leaves the active list (archived / deleted).
+        if let refreshed = viewModel.activeHabits.first(where: { $0.id == current.id }) {
             selectedHabit = refreshed
         } else {
             selectedHabit = nil

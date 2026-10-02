@@ -101,7 +101,8 @@ final class Habit: Codable, Identifiable {
         name = try container.decode(String.self, forKey: .name)
         goal = try container.decode(String.self, forKey: .goal)
         color = try container.decode(String.self, forKey: .color)
-        startDate = try container.decode(Date.self, forKey: .startDate)
+        let rawStart = try container.decode(Date.self, forKey: .startDate)
+        startDate = Calendar.current.startOfDay(for: rawStart)
         let rawCompleted = try container.decodeIfPresent([Date].self, forKey: .completedDates) ?? []
         completedDates = Array(Set(rawCompleted.map { Calendar.current.startOfDay(for: $0) })).sorted()
         userId = try container.decodeIfPresent(UUID.self, forKey: .userId)
@@ -154,6 +155,15 @@ final class Habit: Codable, Identifiable {
         return today <= end
     }
 
+    /// Still inside the open 21-day window and not yet fully completed.
+    /// Home list / today progress only show these.
+    var isInActiveCycle: Bool {
+        isActive && (totalCompletions + totalFrozen) < 21
+    }
+
+    /// Cycle finished (victory) or the calendar window closed — Trophy Case.
+    var isArchived: Bool { !isInActiveCycle }
+
     /// Number of days from `startDate` through today (or `endDate`, whichever is sooner).
     var elapsedDaysCount: Int {
         let calendar = Calendar.current
@@ -165,9 +175,29 @@ final class Habit: Codable, Identifiable {
 
     /// Total number of days marked complete within the 21-day window.
     var totalCompletions: Int {
-        let start = Calendar.current.startOfDay(for: startDate)
-        let end = Calendar.current.startOfDay(for: endDate)
-        return completedDates.filter { $0 >= start && $0 <= end }.count
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+        return completedDates.filter {
+            let day = calendar.startOfDay(for: $0)
+            return day >= start && day <= end
+        }.count
+    }
+
+    /// Completed + frozen days inside the 21-day window — same notion the
+    /// journey strip paints as "filled" (not missed/future).
+    var cycleDaysAccounted: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        var count = 0
+        for offset in 0..<21 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            switch dateStatus(for: date) {
+            case .completed, .frozen: count += 1
+            default: break
+            }
+        }
+        return count
     }
 
     /// Fraction of elapsed days (0...1) that were completed.
@@ -181,9 +211,13 @@ final class Habit: Codable, Identifiable {
     /// than one — so `totalCompletions + totalFrozen` is the count of days
     /// that didn't break the streak.
     var totalFrozen: Int {
-        let start = Calendar.current.startOfDay(for: startDate)
-        let end = Calendar.current.startOfDay(for: endDate)
-        return frozenDates.filter { $0 >= start && $0 <= end }.count
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+        return frozenDates.filter {
+            let day = calendar.startOfDay(for: $0)
+            return day >= start && day <= end
+        }.count
     }
 
     /// Consecutive completed-or-frozen days counting back from today. A day

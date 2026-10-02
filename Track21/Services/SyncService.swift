@@ -80,44 +80,8 @@ class SyncService {
     }
     
     private func mergeHabits(local: [Habit], remote: [Habit]) -> [Habit] {
-        let remoteById: [UUID: Habit] = Dictionary(uniqueKeysWithValues: remote.map { ($0.id, $0) })
-
-        // CRITICAL: always keep the local Habit *instance* when it exists.
-        // Replacing it with a remote clone (even after seeding completedDates)
-        // meant syncCompletedDates mutated a different object than the UI —
-        // an undo on the live instance was invisible to sync, which then
-        // wrote the old green day back into the array on assign.
-        var ordered: [Habit] = []
-        var seen = Set<UUID>()
-        for localHabit in local {
-            seen.insert(localHabit.id)
-            if let remoteHabit = remoteById[localHabit.id] {
-                // Optionally refresh metadata from remote when local isn't pending
-                // and remote looks newer — but never replace the instance or its
-                // completed/frozen dates (those live only on-device / in completed_dates).
-                if localHabit.syncStatus != .pending,
-                   (remoteHabit.updatedAt ?? Date.distantPast) > (localHabit.updatedAt ?? Date.distantPast) {
-                    localHabit.name = remoteHabit.name
-                    localHabit.goal = remoteHabit.goal
-                    localHabit.color = remoteHabit.color
-                    localHabit.startDate = remoteHabit.startDate
-                    localHabit.userId = remoteHabit.userId ?? localHabit.userId
-                    localHabit.updatedAt = remoteHabit.updatedAt
-                }
-            }
-            ordered.append(localHabit)
-        }
-
-        let leftovers = remoteById.values
-            .filter { !seen.contains($0.id) }
-            .sorted { lhs, rhs in
-                if lhs.createdAt != rhs.createdAt {
-                    return lhs.createdAt < rhs.createdAt
-                }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-        ordered.append(contentsOf: leftovers)
-        return ordered
+        // Shared with unit tests — always keeps local Habit instances.
+        HabitCompletionSyncLogic.mergeHabitLists(local: local, remote: remote)
     }
     
     private func uploadPendingChanges(habits: [Habit], userId: UUID) async throws {

@@ -24,6 +24,7 @@ struct ProfileView: View {
     @State private var paywallTrigger: PaywallView.Trigger = .general
     @State private var buddyService = BuddyService.shared
     @State private var showingClearChatAlert = false
+    @State private var showingArchive = false
     #if DEBUG
     @State private var showingDebugMenu = false
     #endif
@@ -81,6 +82,9 @@ struct ProfileView: View {
             #endif
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(trigger: paywallTrigger)
+            }
+            .sheet(isPresented: $showingArchive) {
+                HabitArchiveView(viewModel: viewModel)
             }
             .task {
                 await loadProfile()
@@ -144,6 +148,26 @@ struct ProfileView: View {
                 }
             }
             .accessibilityLabel("Achievements")
+
+            Button {
+                showingArchive = true
+            } label: {
+                HStack(spacing: 12) {
+                    iconBadge("archivebox.fill", color: AppTheme.primary)
+                    Text("Trophy Case")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(viewModel.archivedHabits.isEmpty
+                          ? "Empty"
+                          : "\(viewModel.archivedHabits.count)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(Color(.tertiaryLabel))
+                }
+            }
+            .accessibilityLabel("Trophy Case")
         }
     }
 
