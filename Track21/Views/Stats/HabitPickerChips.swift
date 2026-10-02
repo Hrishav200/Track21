@@ -10,6 +10,9 @@ import SwiftUI
 struct HabitPickerChips: View {
     let habits: [Habit]
     @Binding var selectedHabitID: UUID?
+    /// IDs of archived habits — shown with a small archive mark so they
+    /// read as finished cycles in the same chip row as actives.
+    var archivedIDs: Set<UUID> = []
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -58,6 +61,7 @@ struct HabitPickerChips: View {
     private func chip(for habit: Habit) -> some View {
         let isSelected = selectedHabitID == habit.id
         let color = Color(hex: habit.color)
+        let isArchived = archivedIDs.contains(habit.id)
 
         return Button {
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -65,12 +69,18 @@ struct HabitPickerChips: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 8, height: 8)
+                if isArchived {
+                    Image(systemName: "archivebox.fill")
+                        .font(.caption2)
+                } else {
+                    Circle()
+                        .fill(isSelected ? Color.white.opacity(0.9) : color)
+                        .frame(width: 8, height: 8)
+                }
                 Text(habit.name)
                     .font(.subheadline)
                     .fontWeight(isSelected ? .semibold : .regular)
+                    .lineLimit(1)
             }
             .foregroundColor(isSelected ? .white : .primary)
             .padding(.horizontal, 14)
@@ -79,11 +89,16 @@ struct HabitPickerChips: View {
             .cornerRadius(20)
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
-                    .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                    .stroke(
+                        isSelected
+                            ? Color.clear
+                            : (isArchived ? color.opacity(0.35) : Color.gray.opacity(0.2)),
+                        lineWidth: 1
+                    )
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("\(habit.name)\(isSelected ? ", selected" : "")")
+        .accessibilityLabel("\(habit.name)\(isArchived ? ", archived" : "")\(isSelected ? ", selected" : "")")
     }
 }
 
