@@ -135,8 +135,8 @@ final class BuddyService {
 
     /// Starts a new conversation with an initial buddy greeting.
     @discardableResult
-    func startNewConversation() -> ChatConversation {
-        let greeting = "Hey, I'm \(buddyName ?? "your buddy"). What's on your mind today?"
+    func startNewConversation(greeting: String? = nil) -> ChatConversation {
+        let greeting = greeting ?? "Hey, I'm \(buddyName ?? "your buddy"). What's on your mind today?"
         let initialMessage = ChatMessage(isFromUser: false, text: greeting)
         let conversation = ChatConversation(
             buddyName: buddyName ?? "Buddy",

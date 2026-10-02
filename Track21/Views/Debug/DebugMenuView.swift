@@ -28,6 +28,7 @@ struct DebugMenuView: View {
     @State private var showingTrophyPreview = false
     @State private var previewingCompleteArchive = false
     @State private var seedMessage: String?
+    @AppStorage("Track21ForceBuddyLite") private var forceBuddyLite = false
 
     var body: some View {
         NavigationView {
@@ -128,6 +129,10 @@ struct DebugMenuView: View {
                         Text(buddyService.buddyName ?? "Not named yet")
                             .foregroundColor(.secondary)
                     }
+                    Toggle("Force Buddy Lite (skip Foundation Models)", isOn: $forceBuddyLite)
+                    Text("Use this on Apple Intelligence devices to preview templated Lite chat.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     Button("Reset Buddy Onboarding") {
                         buddyService.clearData()
                     }

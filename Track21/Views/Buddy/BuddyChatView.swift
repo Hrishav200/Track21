@@ -21,7 +21,11 @@ struct BuddyChatView: View {
                 if #available(iOS 26.0, *) {
                     BuddyChatAvailableView(buddyName: buddyName, viewModel: viewModel, authService: authService)
                 } else {
-                    BuddyChatUnavailableView(buddyName: buddyName, reason: .unsupportedOS)
+                    BuddyLiteChatView(
+                        buddyName: buddyName,
+                        viewModel: viewModel,
+                        availabilityReason: .unsupportedOS
+                    )
                 }
             }
             .navigationTitle(buddyName)
@@ -38,6 +42,7 @@ private struct BuddyChatAvailableView: View {
 
     @State private var engine: BuddyChatEngine?
     @State private var availability: BuddyAvailability = .modelNotReady
+    @AppStorage("Track21ForceBuddyLite") private var forceBuddyLite = false
     @State private var inputText = ""
     @State private var isThinking = false
     @State private var inputFieldID = UUID()
@@ -66,15 +71,22 @@ private struct BuddyChatAvailableView: View {
 
     var body: some View {
         Group {
-            if availability == .available {
+            if availability == .available && !forceBuddyLite {
                 chatBody
             } else {
-                BuddyChatUnavailableView(buddyName: buddyName, reason: availability)
+                BuddyLiteChatView(
+                    buddyName: buddyName,
+                    viewModel: viewModel,
+                    // Debug force uses a non-CTA reason so we don't nag to enable AI that is already on.
+                    availabilityReason: (forceBuddyLite && availability == .available)
+                        ? .deviceNotEligible
+                        : availability
+                )
             }
         }
         .onAppear {
             availability = BuddyChatEngine.currentAvailability
-            if availability == .available {
+            if availability == .available && !forceBuddyLite {
                 if engine == nil {
                     engine = BuddyChatEngine(buddyName: buddyName)
                 }
@@ -85,22 +97,24 @@ private struct BuddyChatAvailableView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showingHistory = true
-                } label: {
-                    Image(systemName: "clock.arrow.circlepath")
+            if availability == .available && !forceBuddyLite {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                    .accessibilityLabel("Chat history")
                 }
-                .accessibilityLabel("Chat history")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    buddyService.startNewConversation()
-                    engine = BuddyChatEngine(buddyName: buddyName)
-                } label: {
-                    Image(systemName: "square.and.pencil")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        buddyService.startNewConversation()
+                        engine = BuddyChatEngine(buddyName: buddyName)
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .accessibilityLabel("New conversation")
                 }
-                .accessibilityLabel("New conversation")
             }
         }
         .sheet(isPresented: $showingPaywall) {
@@ -366,7 +380,7 @@ private struct BuddyChatAvailableView: View {
     }
 }
 
-private struct BuddyChatBubble: View {
+struct BuddyChatBubble: View {
     let message: ChatMessage
 
     var body: some View {
@@ -382,25 +396,5 @@ private struct BuddyChatBubble: View {
 
             if !message.isFromUser { Spacer(minLength: 40) }
         }
-    }
-}
-
-private struct BuddyChatUnavailableView: View {
-    let buddyName: String
-    let reason: BuddyAvailability
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "moon.zzz")
-                .font(.system(size: 44))
-                .foregroundColor(.secondary)
-            Text("\(buddyName)\(reason.explanation)")
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 32)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityLabel("Buddy chat unavailable")
     }
 }

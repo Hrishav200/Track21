@@ -188,4 +188,342 @@ enum BuddyLogic {
         guard lowered.contains("habit") else { return false }
         return habitManagementVerbs.contains { lowered.contains($0) }
     }
+
+    // MARK: - Buddy Lite (templated chat when Foundation Models unavailable)
+
+    enum BuddyLiteIntent: Equatable {
+        case crisis
+        case greeting
+        case thanks
+        case motivate
+        case status
+        case todayPlan
+        case struggle
+        case habitManagement
+        case fallback
+    }
+
+    /// Snapshot of live habit state used to fill Lite reply templates.
+    struct BuddyLiteContext: Equatable {
+        var incompleteNames: [String]
+        var completedNames: [String]
+        var atRiskNames: [String]
+        var habitNames: [String]
+        var leadHabitName: String?
+        var leadHabitDay: Int?
+        var category: BuddyLineCategory
+
+        var hasHabits: Bool { !habitNames.isEmpty }
+        var allDoneToday: Bool { hasHabits && incompleteNames.isEmpty }
+    }
+
+    static func liteContext(
+        for habits: [Habit],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> BuddyLiteContext {
+        let active = habits.filter(\.isInActiveCycle)
+        let today = calendar.startOfDay(for: now)
+        let incomplete = active.filter { !$0.isCompletedToday() }
+        let completed = active.filter { $0.isCompletedToday() }
+        let atRisk = incomplete.filter { $0.currentStreak(asOf: today) > 0 }
+        let lead = active.max(by: { $0.currentDay < $1.currentDay })
+
+        return BuddyLiteContext(
+            incompleteNames: incomplete.map(\.name),
+            completedNames: completed.map(\.name),
+            atRiskNames: atRisk.map(\.name),
+            habitNames: active.map(\.name),
+            leadHabitName: lead?.name,
+            leadHabitDay: lead?.currentDay,
+            category: category(for: active, now: now, calendar: calendar)
+        )
+    }
+
+    static func detectLiteIntent(_ text: String) -> BuddyLiteIntent {
+        if containsCrisisSignal(text) { return .crisis }
+
+        let lowered = text.lowercased()
+
+        if requestsHabitManagement(text) { return .habitManagement }
+
+        let motivateHints = ["motivate", "encourage", "inspire", "pep talk", "pump me", "hype"]
+        if motivateHints.contains(where: { lowered.contains($0) }) { return .motivate }
+
+        let statusHints = ["how am i", "how'm i", "progress", "streak", "status", "how's my", "hows my", "doing so far", "am i on track"]
+        if statusHints.contains(where: { lowered.contains($0) }) { return .status }
+
+        let planHints = ["what should", "what can i", "what do i", "today's plan", "todays plan", "help me start", "where do i start", "next step"]
+        if planHints.contains(where: { lowered.contains($0) }) { return .todayPlan }
+
+        let struggleHints = ["struggling", "hard today", "can't do", "cant do", "tired", "failed", "missed", "slipped", "gave up", "falling behind"]
+        if struggleHints.contains(where: { lowered.contains($0) }) { return .struggle }
+
+        let thanksHints = ["thank", "thanks", "thx", "appreciate"]
+        if thanksHints.contains(where: { lowered.contains($0) }) { return .thanks }
+
+        let greetings = ["hi", "hello", "hey", "yo", "good morning", "good afternoon", "good evening"]
+        let trimmed = lowered.trimmingCharacters(in: .whitespacesAndNewlines)
+        if greetings.contains(where: { trimmed == $0 || trimmed.hasPrefix($0 + " ") || trimmed.hasPrefix($0 + "!") || trimmed.hasPrefix($0 + ",") }) {
+            return .greeting
+        }
+
+        return .fallback
+    }
+
+    /// Habit-aware canned coaching. Crisis always wins. Deterministic when
+    /// `pickIndex` is supplied so unit tests can pin an exact line.
+    static func liteReply(
+        to text: String,
+        habits: [Habit],
+        buddyName: String,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        pickIndex: Int? = nil
+    ) -> String {
+        let intent = detectLiteIntent(text)
+        if intent == .crisis { return crisisResponse }
+
+        let ctx = liteContext(for: habits, now: now, calendar: calendar)
+        let pool = liteLines(intent: intent, context: ctx, buddyName: buddyName)
+        guard !pool.isEmpty else {
+            return randomLine(for: ctx.category, pickIndex: pickIndex)
+        }
+        let index = pickIndex.map { abs($0) % pool.count } ?? Int.random(in: 0..<pool.count)
+        return pool[index]
+    }
+
+    static let liteQuickPrompts = [
+        "Motivate me",
+        "How am I doing?",
+        "What should I do today?",
+        "I missed yesterday"
+    ]
+
+    /// Soft upgrade copy when the device *could* run full Buddy but isn't.
+    static func liteSoftCTA(for reason: BuddyAvailability) -> String? {
+        switch reason {
+        case .appleIntelligenceNotEnabled:
+            return "Turn on Apple Intelligence in Settings for full conversational Buddy."
+        case .modelNotReady:
+            return "Full Buddy is still waking up — Lite coaching is on for now."
+        case .available:
+            return nil
+        case .deviceNotEligible, .unsupportedOS:
+            return nil
+        }
+    }
+
+    static func liteModeCaption(for reason: BuddyAvailability) -> String {
+        switch reason {
+        case .appleIntelligenceNotEnabled:
+            return "Buddy Lite · private habit coaching"
+        case .modelNotReady:
+            return "Buddy Lite · full Buddy waking up"
+        case .deviceNotEligible:
+            return "Buddy Lite · on-device coaching"
+        case .unsupportedOS:
+            return "Buddy Lite · needs iOS 26+ for full Buddy"
+        case .available:
+            return "Buddy Lite"
+        }
+    }
+
+    // MARK: Lite template pools
+
+    private static func liteLines(intent: BuddyLiteIntent, context: BuddyLiteContext, buddyName: String) -> [String] {
+        let incomplete = joinedNames(context.incompleteNames)
+        let completed = joinedNames(context.completedNames)
+        let atRisk = joinedNames(context.atRiskNames)
+        let habits = joinedNames(context.habitNames)
+        let lead: String = {
+            if let name = context.leadHabitName, let day = context.leadHabitDay {
+                return "\(name) (day \(day)/21)"
+            }
+            return habits.isEmpty ? "your habits" : habits
+        }()
+
+        switch intent {
+        case .crisis:
+            return [crisisResponse]
+
+        case .greeting:
+            if context.allDoneToday {
+                return [
+                    "Hey! You've already knocked out \(completed) today — love that energy.",
+                    "Hi! \(completed) is done. I'm proud of you already.",
+                    "Hey there. Streaks looking solid — what's on your mind?"
+                ]
+            }
+            if !context.incompleteNames.isEmpty {
+                return [
+                    "Hey! Still waiting on \(incomplete) today — want a plan?",
+                    "Hi — I'm here. \(incomplete) is still open whenever you're ready.",
+                    "Hey! Quick win idea: tick \(context.incompleteNames[0]) and we'll build from there."
+                ]
+            }
+            return [
+                "Hey! I'm \(buddyName) — what's on your mind today?",
+                "Hi — ready when you are. Want motivation, a status check, or a plan?",
+                "Hey! Tell me how today's going."
+            ]
+
+        case .thanks:
+            return [
+                "Anytime. I've got your back.",
+                "You're welcome — now go keep that streak honest.",
+                "Always. One more small win today if you can."
+            ]
+
+        case .motivate:
+            if !context.atRiskNames.isEmpty {
+                return [
+                    "Don't let \(atRisk) slip — that streak worked hard for you. Two minutes is enough.",
+                    "\(atRisk) is still alive. Finish strong and future-you will thank you.",
+                    "You've already proven you can show up. Protect \(atRisk) tonight."
+                ]
+            }
+            if context.allDoneToday {
+                return [
+                    "You're already done for today — that discipline is the whole game. Keep stacking.",
+                    "All clear on \(completed). Rest proud, show up again tomorrow.",
+                    "Look at you — \(completed) finished. That's what consistency feels like."
+                ]
+            }
+            if !context.incompleteNames.isEmpty {
+                return [
+                    "Start with \(context.incompleteNames[0]). Small step, real progress.",
+                    "\(incomplete) is still waiting — pick one and move. Momentum beats mood.",
+                    "You don't need a perfect day. You need \(context.incompleteNames[0]) done."
+                ]
+            }
+            return [
+                randomLine(for: .general, pickIndex: 0),
+                randomLine(for: .general, pickIndex: 1),
+                randomLine(for: .general, pickIndex: 2)
+            ]
+
+        case .status:
+            if !context.hasHabits {
+                return [
+                    "No active habits yet — add one on Home and I'll coach you through the 21 days.",
+                    "Blank slate! Create a habit and I'll track the streaks with you."
+                ]
+            }
+            if context.allDoneToday {
+                return [
+                    "Status: green. \(completed) done today. \(lead) is your furthest cycle — keep going.",
+                    "You're clear for today. Active: \(habits). Nice work.",
+                    "All habits checked. Closest to the finish line: \(lead)."
+                ]
+            }
+            var lines = [
+                "Today: done \(completed.isEmpty ? "nothing yet" : completed). Still open: \(incomplete).",
+                "Open checklist: \(incomplete). Closest to day 21: \(lead)."
+            ]
+            if !context.atRiskNames.isEmpty {
+                lines.append("Streak watch: \(atRisk) needs you before midnight.")
+            }
+            return lines
+
+        case .todayPlan:
+            if !context.hasHabits {
+                return [
+                    "Plan: add one habit you actually care about, then check in with me after you tick day 1.",
+                    "Start simple — one habit on Home, then come back and we'll build the streak together."
+                ]
+            }
+            if context.allDoneToday {
+                return [
+                    "Plan: you're done. Optional — jot a journal page so tomorrow starts clearer.",
+                    "Nothing left on the board. Protect the win: sleep well, same time tomorrow."
+                ]
+            }
+            let first = context.incompleteNames[0]
+            return [
+                "Plan: do \(first) first. Then \(incomplete). One at a time.",
+                "Open Track21 Home, tick \(first), and message me when it's done — I'll celebrate with you.",
+                "Smallest useful step: \(first). Don't wait for motivation; start, then feel it."
+            ]
+
+        case .struggle:
+            if context.category == .comeback || textSuggestsMiss(context: context) {
+                return [
+                    "Yesterday happened. Today is a clean slate — pick \(context.incompleteNames.first ?? "one habit") and restart without guilt.",
+                    "Missing a day doesn't erase progress. Comeback mode: just show up once today.",
+                    "No lecture. One tick today beats a perfect plan you don't start."
+                ]
+            }
+            if !context.incompleteNames.isEmpty {
+                return [
+                    "Hard days count too. Shrink it: just \(context.incompleteNames[0]).",
+                    "When it feels heavy, do the smallest version of \(context.incompleteNames[0]). Still counts.",
+                    "I'm not going anywhere. \(incomplete) can wait five minutes — then we move."
+                ]
+            }
+            return [
+                randomLine(for: .comeback, pickIndex: 0),
+                randomLine(for: .comeback, pickIndex: 1),
+                randomLine(for: .general, pickIndex: 3)
+            ]
+
+        case .habitManagement:
+            return [
+                "I can't add or edit habits in Lite mode — use Add Habit on Home (or turn on Apple Intelligence for full Buddy).",
+                "Habit changes happen on Home → Add Habit. In Lite I stay in coach mode only.",
+                "Got it — for adding/removing habits, use the Home screen. Ask me to motivate or check your status instead."
+            ]
+
+        case .fallback:
+            // Lean on the same category logic as nudges, then personalize.
+            switch context.category {
+            case .streakAtRisk:
+                return [
+                    "Heads-up: \(atRisk.isEmpty ? incomplete : atRisk) still needs you today.",
+                    randomLine(for: .streakAtRisk, pickIndex: 0),
+                    "You've got time. Start with \(context.incompleteNames.first ?? "your habit")."
+                ]
+            case .comeback:
+                return [
+                    randomLine(for: .comeback, pickIndex: 0),
+                    "Fresh day. \(incomplete.isEmpty ? "Show up once." : "Tick \(context.incompleteNames[0]) and the comeback begins.")",
+                    randomLine(for: .comeback, pickIndex: 2)
+                ]
+            case .milestone:
+                return [
+                    randomLine(for: .milestone, pickIndex: 0),
+                    "That milestone on \(lead) is real. Feel it — then keep the chain going.",
+                    randomLine(for: .milestone, pickIndex: 3)
+                ]
+            case .general:
+                if !context.incompleteNames.isEmpty {
+                    return [
+                        "I'm with you. \(incomplete) is still open whenever you're ready.",
+                        "Want a nudge, a status check, or a plan? Or just tick \(context.incompleteNames[0]).",
+                        randomLine(for: .general, pickIndex: 4)
+                    ]
+                }
+                return [
+                    randomLine(for: .general, pickIndex: 0),
+                    "I'm here — ask for motivation, progress, or what to do next.",
+                    randomLine(for: .general, pickIndex: 5)
+                ]
+            }
+        }
+    }
+
+    private static func textSuggestsMiss(context: BuddyLiteContext) -> Bool {
+        context.category == .comeback
+    }
+
+    private static func joinedNames(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return ""
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        default:
+            let head = names.dropLast().joined(separator: ", ")
+            return "\(head), and \(names.last!)"
+        }
+    }
 }
