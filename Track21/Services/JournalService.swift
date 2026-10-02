@@ -29,8 +29,14 @@ final class JournalService {
     /// Always creates a brand-new entry — this is the "Save Entry" action,
     /// never an overwrite of whatever you last wrote today.
     @discardableResult
-    func add(text: String, mood: JournalMood?, date: Date = Date(), userId: UUID? = nil) -> JournalEntry {
-        let newEntry = JournalEntry(date: date, text: text, mood: mood, userId: userId)
+    func add(
+        text: String,
+        mood: JournalMood?,
+        energy: Int? = nil,
+        date: Date = Date(),
+        userId: UUID? = nil
+    ) -> JournalEntry {
+        let newEntry = JournalEntry(date: date, text: text, mood: mood, energy: energy, userId: userId)
         entries.insert(newEntry, at: 0)
         entries.sort { $0.createdAt > $1.createdAt }
         persist()
@@ -38,11 +44,12 @@ final class JournalService {
     }
 
     /// Updates one specific entry by id — used only when the user has
-    /// explicitly opened that entry (via the "All Entries" list) to edit it.
-    func update(id: UUID, text: String, mood: JournalMood?) {
+    /// explicitly opened that entry (via the Memory Lane list) to edit it.
+    func update(id: UUID, text: String, mood: JournalMood?, energy: Int? = nil) {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].text = text
         entries[index].mood = mood
+        entries[index].energy = energy.map { min(5, max(1, $0)) }
         entries[index].updatedAt = Date()
         persist()
     }
