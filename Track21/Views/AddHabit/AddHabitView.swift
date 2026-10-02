@@ -23,6 +23,28 @@ struct AddHabitView: View {
     @State private var reminderTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var intervalHours = 4
     @State private var intervalMinutes = 0
+    @State private var showHabitSuggestions = false
+    @State private var showGoalSuggestions = false
+    @FocusState private var focusedField: InputField?
+
+    private enum InputField: Hashable {
+        case name
+        case goal
+    }
+
+    private static let habitSuggestions = [
+        "Walk", "Exercise", "Drink Water", "Read", "Meditate",
+        "Stretch", "Sleep 8 Hours", "No Sugar", "Journal",
+        "Take Vitamins", "Practice Gratitude", "Eat Vegetables",
+        "Learn Something", "Digital Detox", "Deep Work"
+    ]
+
+    private static let goalPresets = [
+        "Stay healthy", "Move my body", "Build consistency",
+        "Improve my focus", "Reduce stress", "Feel more energized",
+        "Sleep better", "Make time for myself", "Learn something new",
+        "Support my wellbeing"
+    ]
 
     let colors = ["FFB6A3", "6BB6FF", "5DD167", "FFD700", "FF6B9D", "A78BFA"]
     let colorNames = ["Coral", "Blue", "Green", "Gold", "Pink", "Purple"]
@@ -34,7 +56,7 @@ struct AddHabitView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        previewCard
+                        introCard
                         detailsCard
                         colorCard
                         startDateCard
@@ -58,43 +80,169 @@ struct AddHabitView: View {
                         addHabit()
                     }
                     .fontWeight(.semibold)
-                    .disabled(name.isEmpty || goal.isEmpty || isIntervalReminderEmpty)
+                    .disabled(!canAdd || isIntervalReminderEmpty)
                 }
+            }
+            .sheet(isPresented: $showHabitSuggestions) {
+                SuggestionPickerSheet(
+                    title: "Habit suggestions",
+                    subtitle: "Pick one to start — you can still edit it after.",
+                    items: Self.habitSuggestions,
+                    selected: name,
+                    icon: "sparkles"
+                ) { picked in
+                    name = picked
+                    showHabitSuggestions = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        focusedField = .goal
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(24)
+            }
+            .sheet(isPresented: $showGoalSuggestions) {
+                SuggestionPickerSheet(
+                    title: "Goal suggestions",
+                    subtitle: "What does success look like for you?",
+                    items: Self.goalPresets,
+                    selected: goal,
+                    icon: "flag.fill"
+                ) { picked in
+                    goal = picked
+                    showGoalSuggestions = false
+                    focusedField = nil
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(24)
             }
         }
     }
 
-    // MARK: - Live preview
+    // MARK: - Name and goal
 
-    /// Shows the habit card exactly as it'll appear on Home, updating live
-    /// as the user types and picks a color — makes the form feel like it's
-    /// building something real rather than filling out a spreadsheet.
-    private var previewCard: some View {
+    private var introCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("PREVIEW")
-            HabitCardView(
-                habit: Habit(name: name.isEmpty ? "Habit name" : name, goal: goal.isEmpty ? "Your goal" : goal, color: selectedColor),
-                isCompleted: false
-            )
-            .opacity(name.isEmpty ? 0.6 : 1)
-            .animation(.easeInOut(duration: 0.15), value: selectedColor)
-            .animation(.easeInOut(duration: 0.15), value: name.isEmpty)
+            HStack(spacing: 10) {
+                Image(systemName: "leaf.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(AppTheme.primary)
+                    .frame(width: 38, height: 38)
+                    .background(AppTheme.primary.opacity(0.14))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Build your next 21 days")
+                        .font(.headline)
+                    Text("Type your own, or tap Suggestions for ideas.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(AppTheme.primary.opacity(0.10))
+        .cornerRadius(16)
     }
 
-    // MARK: - Details
-
     private var detailsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionLabel("HABIT DETAILS")
-            TextField("Habit name", text: $name)
-                .textFieldStyle(.roundedBorder)
-            TextField("Goal (e.g., 30min, 5km)", text: $goal)
-                .textFieldStyle(.roundedBorder)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("YOUR HABIT")
+                textFieldRow(
+                    icon: "target",
+                    prompt: "What do you want to practice?",
+                    text: $name,
+                    field: .name,
+                    submitLabel: .next
+                )
+                suggestionsButton {
+                    focusedField = nil
+                    showHabitSuggestions = true
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("YOUR GOAL")
+                textFieldRow(
+                    icon: "flag",
+                    prompt: "What does success look like?",
+                    text: $goal,
+                    field: .goal,
+                    submitLabel: .done
+                )
+                suggestionsButton {
+                    focusedField = nil
+                    showGoalSuggestions = true
+                }
+            }
         }
         .padding(16)
         .background(AppTheme.cardBackground)
         .cornerRadius(16)
+    }
+
+    private func suggestionsButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                Text("Suggestions")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .foregroundColor(.white)
+            .background(AppTheme.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Suggestions")
+    }
+
+    private func textFieldRow(
+        icon: String,
+        prompt: String,
+        text: Binding<String>,
+        field: InputField,
+        submitLabel: SubmitLabel
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(AppTheme.primary)
+                .frame(width: 22)
+            TextField(prompt, text: text)
+                .focused($focusedField, equals: field)
+                .textInputAutocapitalization(.sentences)
+                .autocorrectionDisabled(false)
+                .submitLabel(submitLabel)
+                .onSubmit {
+                    focusedField = field == .name ? .goal : nil
+                }
+            if !text.wrappedValue.isEmpty {
+                Button { text.wrappedValue = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary.opacity(0.65))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .padding(.horizontal, 13)
+        .frame(minHeight: 50)
+        .background(AppTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(focusedField == field ? AppTheme.primary : Color.primary.opacity(0.08), lineWidth: focusedField == field ? 2 : 1)
+        )
+    }
+
+    private var canAdd: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Color
@@ -284,8 +432,8 @@ struct AddHabitView: View {
 
     private func addHabit() {
         let habit = Habit(
-            name: name,
-            goal: goal,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            goal: goal.trimmingCharacters(in: .whitespacesAndNewlines),
             color: selectedColor,
             startDate: startDate,
             userId: authService.currentUser?.id,
@@ -305,6 +453,96 @@ struct AddHabitView: View {
         }
 
         dismiss()
+    }
+}
+
+// MARK: - Suggestion picker sheet
+
+private struct SuggestionPickerSheet: View {
+    let title: String
+    let subtitle: String
+    let items: [String]
+    let selected: String
+    let icon: String
+    let onPick: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            Image(systemName: icon)
+                                .font(.title3.weight(.semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 42, height: 42)
+                                .background(AppTheme.primary)
+                                .clipShape(Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(title)
+                                    .font(.title3.weight(.bold))
+                                Text(subtitle)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 4)
+
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 140), spacing: 10)],
+                            spacing: 10
+                        ) {
+                            ForEach(items, id: \.self) { item in
+                                suggestionRow(item)
+                            }
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func suggestionRow(_ item: String) -> some View {
+        let isSelected = selected == item
+        return Button {
+            onPick(item)
+        } label: {
+            HStack(spacing: 8) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                Text(item)
+                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .foregroundColor(isSelected ? .white : .primary)
+            .background(isSelected ? AppTheme.primary : AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.clear : AppTheme.primary.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(isSelected ? 0.08 : 0.04), radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 
