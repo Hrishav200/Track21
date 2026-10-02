@@ -105,7 +105,21 @@ class SyncService {
             merged[id]?.frozenDates = dates
         }
 
-        return Array(merged.values)
+        // Preserve local order; append remote-only leftovers by createdAt then id
+        var ordered: [Habit] = []
+        for localHabit in local {
+            if let habit = merged.removeValue(forKey: localHabit.id) {
+                ordered.append(habit)
+            }
+        }
+        let leftovers = merged.values.sorted { lhs, rhs in
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt < rhs.createdAt
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        ordered.append(contentsOf: leftovers)
+        return ordered
     }
     
     private func uploadPendingChanges(habits: [Habit], userId: UUID) async throws {

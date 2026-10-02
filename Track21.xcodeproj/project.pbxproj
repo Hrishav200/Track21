@@ -45,7 +45,9 @@
 		94C95C7A2F38DCE400B0ABD5 /* Exceptions for "Track21" folder in "Track21" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				.claude,
 				Info.plist,
+				output,
 			);
 			target = 94319C302E96742000CCF6A3 /* Track21 */;
 		};
@@ -56,6 +58,10 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				94C95C7A2F38DCE400B0ABD5 /* Exceptions for "Track21" folder in "Track21" target */,
+			);
+			explicitFolders = (
+				.claude,
+				output,
 			);
 			path = Track21;
 			sourceTree = "<group>";
@@ -163,7 +169,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				94319C332E96742000CCF6A3 /* Track21 */,
-				949CD8C82E9D1AE6000CE242 /* .github */,
 			);
 			name = Track21;
 			packageProductDependencies = (
@@ -514,7 +519,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourbaecodes.trackHabit;
 				PRODUCT_NAME = "Track21 – 21 Day Habit Builder";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -578,7 +583,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yourbaecodes.trackHabit;
 				PRODUCT_NAME = "Track21 – 21 Day Habit Builder";
 				REGISTER_APP_GROUPS = YES;
