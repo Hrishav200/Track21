@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State private var fullName: String = ""
     @State private var showingSignOutAlert = false
     @State private var showingDeleteAlert = false
+    @State private var deleteConfirmationText = ""
     @State private var isDeletingAccount = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
@@ -38,8 +39,8 @@ struct ProfileView: View {
                 freezeSection
                 buddySection
                 aboutSection
-                moreSection
                 signOutSection
+                deleteAccountSection
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Profile")
@@ -60,12 +61,22 @@ struct ProfileView: View {
                 Text("Are you sure you want to sign out?")
             }
             .alert("Delete Account", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
+                TextField("Type DELETE to confirm", text: $deleteConfirmationText)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {
+                    deleteConfirmationText = ""
+                }
+                Button("Delete Account", role: .destructive) {
+                    guard deleteConfirmationText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "delete" else {
+                        return
+                    }
+                    deleteConfirmationText = ""
                     deleteAccount()
                 }
+                .disabled(deleteConfirmationText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "delete")
             } message: {
-                Text("This will permanently delete your account and all your data. This action cannot be undone.")
+                Text("This permanently deletes your account and all your data. Type DELETE to continue.")
             }
             .alert("Clear Chat History", isPresented: $showingClearChatAlert) {
                 Button("Cancel", role: .cancel) { }
@@ -307,23 +318,29 @@ struct ProfileView: View {
         }
     }
 
-    private var moreSection: some View {
-        Section {
-            Menu {
+    @ViewBuilder
+    private var deleteAccountSection: some View {
+        if !authService.isGuest {
+            Section {
                 Button(role: .destructive) {
+                    deleteConfirmationText = ""
                     showingDeleteAlert = true
                 } label: {
-                    Label("Delete Account", systemImage: "trash")
+                    HStack {
+                        Spacer()
+                        if isDeletingAccount {
+                            ProgressView()
+                        } else {
+                            Text("Delete Account")
+                        }
+                        Spacer()
+                    }
                 }
-            } label: {
-                HStack {
-                    Spacer()
-                    Text("More")
-                    Spacer()
-                }
-                .foregroundColor(.secondary)
+                .disabled(isDeletingAccount)
+                .accessibilityLabel("Delete Account")
+            } footer: {
+                Text("Permanently removes your account and all synced data. This cannot be undone.")
             }
-            .accessibilityLabel("More")
         }
     }
 
