@@ -48,11 +48,9 @@ struct HomeView: View {
         }
         .background(AppTheme.background)
         .edgesIgnoringSafeArea(.top)
-        .onTapGesture {
-            // Tapping a habit row consumes its own tap gesture first, so
-            // this only ever fires for taps elsewhere on the screen.
-            withAnimation(.easeInOut(duration: 0.2)) { selectedHabit = nil }
-        }
+        // Deselect by tapping the already-selected habit again (MyHabitsSection).
+        // A ScrollView-wide onTapGesture competed with row taps and made soft
+        // switches feel like they needed a hard press.
         .onChange(of: viewModel.habits.count) {
             refreshSelectedHabit()
         }

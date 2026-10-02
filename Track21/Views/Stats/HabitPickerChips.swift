@@ -53,8 +53,9 @@ struct HabitPickerChips: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
             )
+            .contentShape(Capsule())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel("All habits\(isSelected ? ", selected" : "")")
     }
 
@@ -96,8 +97,9 @@ struct HabitPickerChips: View {
                         lineWidth: 1
                     )
             )
+            .contentShape(Capsule())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel("\(habit.name)\(isArchived ? ", archived" : "")\(isSelected ? ", selected" : "")")
     }
 }

@@ -48,6 +48,7 @@ struct AllHabitsStatsList: View {
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                 }
                 .frame(width: 38, height: 38)
+                .allowsHitTesting(false)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(habit.name)
@@ -59,7 +60,7 @@ struct AllHabitsStatsList: View {
                         .foregroundColor(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 if !habit.isActive && !isPremium {
                     Image(systemName: "lock.fill")
@@ -80,18 +81,23 @@ struct AllHabitsStatsList: View {
                     .cornerRadius(10)
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 10)
             .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? color.opacity(0.12) : Color.clear)
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? color.opacity(0.3) : Color.clear, lineWidth: 1)
             )
+            // PlainButtonStyle only hits opaque children; clear/Spacer areas
+            // used to miss soft taps. Make the whole row the hit target.
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(habit.name), \(Int((habit.completionRate * 100).rounded())) percent complete, \(habit.currentStreak) day streak")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -208,11 +208,12 @@ struct MyHabitsSection: View {
                 }
             }
         )
-        .id(habit.id)
-        .transition(habitTransition(isCompleted: isCompleted))
+        .contentShape(Rectangle())
         .onTapGesture {
             handleTap(for: habit)
         }
+        .id(habit.id)
+        .transition(habitTransition(isCompleted: isCompleted))
         .contextMenu {
             Button {
                 habitToEdit = habit
