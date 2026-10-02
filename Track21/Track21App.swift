@@ -15,7 +15,13 @@ struct Track21App: App {
     @State private var viewModel = HabitViewModel()
     @State private var profileService = ProfileService()
     @State private var showPasswordReset = false
-    
+
+    init() {
+        // As early as possible — without this, a reminder that fires while
+        // the app happens to be in the foreground is silently dropped.
+        NotificationService.shared.registerAsDelegate()
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -30,6 +36,47 @@ struct Track21App: App {
                 } else {
                     LoginView(authService: authService)
                 }
+            }
+            .task {
+                // UI tests launch with this flag so each test starts from a
+                // clean slate instead of accumulating habits across runs.
+                if ProcessInfo.processInfo.arguments.contains("-uitest-reset") {
+                    viewModel.clearData()
+                    BuddyService.shared.clearData()
+                    // Pre-name the buddy so the one-time naming screen
+                    // doesn't block every other UI test's path to the home
+                    // screen. Tests that specifically exercise onboarding
+                    // pass -uitest-fresh-buddy to skip this and see it.
+                    if !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-buddy") {
+                        BuddyService.shared.saveBuddyName("Buddy")
+                    }
+                    // Same idea for the app-intro carousel — mark it seen so
+                    // it doesn't block every other test's path to the home
+                    // screen. Tests exercising it pass -uitest-fresh-onboarding,
+                    // which explicitly clears the flag instead (a stale
+                    // "seen" value could otherwise persist between runs).
+                    let sawOnboardingBefore = !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-onboarding")
+                    UserDefaults.standard.set(sawOnboardingBefore, forKey: "Track21HasSeenOnboarding")
+                }
+
+                // Seeds a habit with a mix of completed/frozen/missed days so
+                // the streak-freeze UI (journey grid, weekly calendar) can be
+                // screenshotted without waiting for a real missed day.
+                if ProcessInfo.processInfo.arguments.contains("-uitest-seed-frozen-habit") {
+                    let calendar = Calendar.current
+                    let startDate = calendar.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+                    let habit = Habit(name: "Drink Water", goal: "8 glasses", color: "6BB6FF", startDate: startDate)
+                    habit.completedDates = [6, 5, 3, 1].compactMap {
+                        calendar.date(byAdding: .day, value: -$0, to: Date())
+                    }
+                    if let frozenDay = calendar.date(byAdding: .day, value: -4, to: Date()) {
+                        habit.frozenDates = [frozenDay]
+                    }
+                    viewModel.addHabit(habit)
+                }
+
+                // Check for existing session after the UI is already rendered
+                await authService.checkSession()
             }
             .onOpenURL { url in
                 // Handle deep links for auth (password reset, magic links, etc.)
