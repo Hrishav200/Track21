@@ -68,14 +68,20 @@ final class PremiumService {
         transactionListenerTask?.cancel()
     }
 
-    func loadProducts() async {
-        guard products.isEmpty else { return }
+    func loadProducts(force: Bool = false) async {
+        if !force && !products.isEmpty { return }
         isLoadingProducts = true
         defer { isLoadingProducts = false }
         do {
             let fetched = try await Product.products(for: Self.allProductIDs)
             products = fetched.sorted { lhs, rhs in
                 Self.allProductIDs.firstIndex(of: lhs.id) ?? 0 < Self.allProductIDs.firstIndex(of: rhs.id) ?? 0
+            }
+            if products.isEmpty {
+                purchaseError = "No Track21 Pro products found. For local testing, run from Xcode with Track21.storekit selected in the scheme. For a device Sandbox test, create matching IAP products in App Store Connect."
+                NSLog("PremiumService: Product.products returned empty for %@", Self.allProductIDs.joined(separator: ", "))
+            } else {
+                purchaseError = nil
             }
         } catch {
             NSLog("PremiumService: failed to load products: %@", String(describing: error))
@@ -86,30 +92,47 @@ final class PremiumService {
     @discardableResult
     func purchase(_ product: Product) async throws -> Bool {
         purchaseError = nil
-        let result = try await product.purchase()
+        do {
+            let result = try await product.purchase()
 
-        switch result {
-        case .success(let verification):
-            guard case .verified(let transaction) = verification else {
-                purchaseError = "Couldn't verify that purchase. Please try again."
+            switch result {
+            case .success(let verification):
+                guard case .verified(let transaction) = verification else {
+                    purchaseError = "Couldn't verify that purchase. Please try again."
+                    return false
+                }
+                await transaction.finish()
+                await refreshEntitlements()
+                return true
+            case .userCancelled:
+                return false
+            case .pending:
+                purchaseError = "Purchase pending — ask a family member to approve it, or check back shortly."
+                return false
+            @unknown default:
+                purchaseError = "Purchase didn't complete. Please try again."
                 return false
             }
-            await transaction.finish()
-            await refreshEntitlements()
-            return true
-        case .userCancelled:
-            return false
-        case .pending:
-            purchaseError = "Purchase pending — ask a family member to approve it, or check back shortly."
-            return false
-        @unknown default:
-            return false
+        } catch {
+            NSLog("PremiumService: purchase failed: %@", String(describing: error))
+            purchaseError = "Purchase failed: \(error.localizedDescription)"
+            throw error
         }
     }
 
     func restorePurchases() async throws {
-        try await AppStore.sync()
-        await refreshEntitlements()
+        do {
+            try await AppStore.sync()
+            await refreshEntitlements()
+            if !hasActiveEntitlement {
+                purchaseError = "No previous Track21 Pro purchase found to restore."
+            } else {
+                purchaseError = nil
+            }
+        } catch {
+            purchaseError = "Restore failed: \(error.localizedDescription)"
+            throw error
+        }
     }
 
     func refreshEntitlements() async {

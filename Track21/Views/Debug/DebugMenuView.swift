@@ -58,7 +58,11 @@ struct DebugMenuView: View {
                             Button {
                                 Task {
                                     purchaseInFlight = product.id
-                                    _ = try? await premiumService.purchase(product)
+                                    do {
+                                        _ = try await premiumService.purchase(product)
+                                    } catch {
+                                        // purchaseError already set inside PremiumService
+                                    }
                                     purchaseInFlight = nil
                                 }
                             } label: {

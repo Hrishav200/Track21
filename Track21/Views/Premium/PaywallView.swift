@@ -70,7 +70,7 @@ struct PaywallView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Button("Try Again") {
-                                    Task { await premiumService.loadProducts() }
+                                    Task { await premiumService.loadProducts(force: true) }
                                 }
                                 .font(.subheadline.weight(.semibold))
                             }
@@ -131,7 +131,11 @@ struct PaywallView: View {
         return Button {
             Task {
                 purchaseInFlight = product.id
-                _ = try? await premiumService.purchase(product)
+                do {
+                    _ = try await premiumService.purchase(product)
+                } catch {
+                    // purchaseError already set inside PremiumService
+                }
                 purchaseInFlight = nil
             }
         } label: {
