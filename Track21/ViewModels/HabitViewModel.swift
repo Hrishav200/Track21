@@ -46,11 +46,11 @@ class HabitViewModel {
         cancelRemindersForArchivedHabits()
     }
 
-    /// Finished cycles shouldn't keep firing local notifications.
+    /// Finished cycles and deleted habits shouldn't keep firing local
+    /// notifications. Reconcile against whatever is still pending, not only
+    /// habits we still have a reference to.
     private func cancelRemindersForArchivedHabits() {
-        for habit in archivedHabits {
-            NotificationService.shared.cancelReminder(for: habit)
-        }
+        NotificationService.shared.reconcilePendingReminders(habits: habits)
     }
     
     /// Habits still in an open, unfinished 21-day cycle — Home list source.
@@ -196,6 +196,7 @@ class HabitViewModel {
                 completionRevision += 1
                 print("[Track21][sync] applied rev=\(completionRevision) habits=\(habits.count) followUp=\(result.needsFollowUp) depth=\(followUpDepth)")
                 saveHabits()
+                NotificationService.shared.reconcilePendingReminders(habits: habits)
                 if result.needsFollowUp {
                     syncService.pendingSyncUserId = userId
                 }

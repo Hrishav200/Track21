@@ -14,6 +14,7 @@ struct BuddyLiteChatView: View {
     let buddyName: String
     @Bindable var viewModel: HabitViewModel
     let availabilityReason: BuddyAvailability
+    var isTabActive: Bool = true
 
     @State private var inputText = ""
     @State private var isThinking = false
@@ -128,6 +129,18 @@ struct BuddyLiteChatView: View {
                 .accessibilityLabel("Send message")
             }
             .padding()
+        }
+        .onChange(of: isTabActive) { _, active in
+            guard !active else { return }
+            isInputFocused = false
+            BuddyKeyboard.dismiss()
+        }
+        .onDisappear {
+            // Only dismiss when this tab is already inactive. Keyboard/layout
+            // transitions can briefly tear the view down while the user types.
+            guard !isTabActive else { return }
+            isInputFocused = false
+            BuddyKeyboard.dismiss()
         }
         .onAppear {
             if buddyService.activeConversation == nil || shouldStartNewConversation() {

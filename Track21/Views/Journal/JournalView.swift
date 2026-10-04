@@ -14,6 +14,10 @@ internal import Auth
 struct JournalView: View {
     @Bindable var viewModel: HabitViewModel
     var authService: AuthService
+    /// False while another tab is showing. The journal stays mounted (so
+    /// scroll position survives), which also keeps the text editor as first
+    /// responder — clear focus when this flips off so the keyboard collapses.
+    var isTabActive: Bool = true
 
     @State private var journalService = JournalService.shared
     @State private var todayText: String = ""
@@ -91,6 +95,19 @@ struct JournalView: View {
                     .zIndex(2)
                     .allowsHitTesting(false)
             }
+        }
+        .onChange(of: isTabActive) { _, active in
+            guard !active else { return }
+            isEditorFocused = false
+            JournalKeyboard.dismiss()
+        }
+        .onDisappear {
+            // Only when this tab is already inactive. Keyboard show/hide can
+            // briefly tear the view down; dismissing while the tab is active
+            // would kill typing.
+            guard !isTabActive else { return }
+            isEditorFocused = false
+            JournalKeyboard.dismiss()
         }
         .sheet(item: $selectedEntry) { entry in
             JournalEntryDetailView(
@@ -566,6 +583,20 @@ struct JournalView: View {
             todayEnergy = nil
             promptSeed &+= 1
         }
+    }
+}
+
+
+enum JournalKeyboard {
+    /// Resigns whichever field is first responder without touching focus
+    /// state of a field the user is still actively editing on this tab.
+    static func dismiss() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }
 

@@ -14,17 +14,26 @@ struct BuddyChatView: View {
     let buddyName: String
     @Bindable var viewModel: HabitViewModel
     let authService: AuthService
+    /// False while another tab is showing. Buddy stays mounted so its chat
+    /// state survives tab switches, but its input must resign first responder.
+    var isTabActive: Bool = true
 
     var body: some View {
         NavigationStack {
             Group {
                 if #available(iOS 26.0, *) {
-                    BuddyChatAvailableView(buddyName: buddyName, viewModel: viewModel, authService: authService)
+                    BuddyChatAvailableView(
+                        buddyName: buddyName,
+                        viewModel: viewModel,
+                        authService: authService,
+                        isTabActive: isTabActive
+                    )
                 } else {
                     BuddyLiteChatView(
                         buddyName: buddyName,
                         viewModel: viewModel,
-                        availabilityReason: .unsupportedOS
+                        availabilityReason: .unsupportedOS,
+                        isTabActive: isTabActive
                     )
                 }
             }
@@ -39,6 +48,7 @@ private struct BuddyChatAvailableView: View {
     let buddyName: String
     @Bindable var viewModel: HabitViewModel
     let authService: AuthService
+    var isTabActive: Bool
 
     @State private var engine: BuddyChatEngine?
     @State private var availability: BuddyAvailability = .modelNotReady
@@ -80,9 +90,22 @@ private struct BuddyChatAvailableView: View {
                     // Debug force uses a non-CTA reason so we don't nag to enable AI that is already on.
                     availabilityReason: (forceBuddyLite && availability == .available)
                         ? .deviceNotEligible
-                        : availability
+                        : availability,
+                    isTabActive: isTabActive
                 )
             }
+        }
+        .onChange(of: isTabActive) { _, active in
+            guard !active else { return }
+            isInputFocused = false
+            BuddyKeyboard.dismiss()
+        }
+        .onDisappear {
+            // Only dismiss when this tab is already inactive. Keyboard/layout
+            // transitions can briefly tear the view down while the user types.
+            guard !isTabActive else { return }
+            isInputFocused = false
+            BuddyKeyboard.dismiss()
         }
         .onAppear {
             availability = BuddyChatEngine.currentAvailability
@@ -396,5 +419,19 @@ struct BuddyChatBubble: View {
 
             if !message.isFromUser { Spacer(minLength: 40) }
         }
+    }
+}
+
+
+/// Dismisses Buddy's input only when the tab is leaving; focus state remains
+/// untouched while the user is still typing in Buddy.
+enum BuddyKeyboard {
+    static func dismiss() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }

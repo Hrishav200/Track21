@@ -134,7 +134,7 @@ struct AddHabitView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Build your next 21 days")
                         .font(.headline)
-                    Text("Type your own, or tap Suggestions for ideas.")
+                    Text("Type your own, or tap View Suggestions for ideas.")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -188,7 +188,7 @@ struct AddHabitView: View {
             HStack(spacing: 7) {
                 Image(systemName: "sparkles")
                     .font(.subheadline.weight(.semibold))
-                Text("Suggestions")
+                Text("View Suggestions")
                     .font(.subheadline.weight(.semibold))
             }
             .frame(maxWidth: .infinity)
@@ -199,7 +199,7 @@ struct AddHabitView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Suggestions")
+        .accessibilityLabel("View Suggestions")
     }
 
     private func textFieldRow(

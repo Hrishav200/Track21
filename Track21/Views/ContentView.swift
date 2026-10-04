@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 internal import Auth
 
 struct ContentView: View {
@@ -22,6 +23,7 @@ struct ContentView: View {
     @State private var showBuddyNaming = false
     @AppStorage("Track21HasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var showOnboarding = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
@@ -132,6 +134,10 @@ struct ContentView: View {
                 showBuddyNaming = false
             })
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            NotificationService.shared.reconcilePendingReminders(habits: viewModel.habits)
+        }
         .task {
             if !hasSeenOnboarding {
                 showOnboarding = true
@@ -140,6 +146,9 @@ struct ContentView: View {
             }
 
             await NotificationService.shared.requestAuthorizationIfNeeded()
+            // Drop pending reminders for deleted or archived habits. Active
+            // habits that still have a reminder configured are left alone.
+            NotificationService.shared.reconcilePendingReminders(habits: viewModel.habits)
 
             let protectedHabits = viewModel.protectStreaksIfNeeded()
             if !protectedHabits.isEmpty {
@@ -193,9 +202,14 @@ struct ContentView: View {
                     .tabPageStyle(isActive: selectedTab == 0)
                 StatsView(viewModel: viewModel)
                     .tabPageStyle(isActive: selectedTab == 1)
-                BuddyChatView(buddyName: buddyService.buddyName ?? "Buddy", viewModel: viewModel, authService: authService)
+                BuddyChatView(
+                    buddyName: buddyService.buddyName ?? "Buddy",
+                    viewModel: viewModel,
+                    authService: authService,
+                    isTabActive: selectedTab == 2
+                )
                     .tabPageStyle(isActive: selectedTab == 2)
-                JournalView(viewModel: viewModel, authService: authService)
+                JournalView(viewModel: viewModel, authService: authService, isTabActive: selectedTab == 3)
                     .tabPageStyle(isActive: selectedTab == 3)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -234,6 +248,14 @@ struct ContentView: View {
     private func tabBarButton(icon: String, label: String, tag: Int) -> some View {
         let isSelected = selectedTab == tag
         return Button {
+            // Journal stays mounted, so its editor can keep the keyboard up
+            // after a tab switch unless we resign first responder here.
+            if selectedTab == 2 && tag != 2 {
+                BuddyKeyboard.dismiss()
+            }
+            if selectedTab == 3 && tag != 3 {
+                JournalKeyboard.dismiss()
+            }
             selectedTab = tag
         } label: {
             VStack(spacing: 3) {

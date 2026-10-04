@@ -46,8 +46,28 @@ final class NotificationService: NSObject {
         center.delegate = self
     }
 
+    static let reminderIdentifierPrefix = "habit-reminder-"
+
     static func reminderIdentifier(for habit: Habit) -> String {
-        "habit-reminder-\(habit.id.uuidString)"
+        reminderIdentifierPrefix + habit.id.uuidString
+    }
+
+    /// Pending habit-reminder ids that should be removed.
+    /// Keeps an id only when it belongs to an active-cycle habit that still
+    /// has a reminder configured. Deleted habits (id no longer in `habits`),
+    /// archived / finished cycles, and active habits with the reminder
+    /// turned off are all cancelled. Non-habit ids (buddy nudges) are left
+    /// alone.
+    static func reminderIdentifiersToCancel(pendingIdentifiers: [String], habits: [Habit]) -> [String] {
+        let keep = Set(
+            habits.compactMap { habit -> String? in
+                guard habit.isInActiveCycle, makeReminderRequest(for: habit) != nil else { return nil }
+                return reminderIdentifier(for: habit)
+            }
+        )
+        return pendingIdentifiers.filter { identifier in
+            identifier.hasPrefix(reminderIdentifierPrefix) && !keep.contains(identifier)
+        }
     }
 
     /// Builds the reminder notification request for a habit — a fixed
@@ -87,7 +107,9 @@ final class NotificationService: NSObject {
     /// `reminderTime`. Passing a habit with `reminderTime == nil` cancels
     /// any existing reminder instead.
     func scheduleReminder(for habit: Habit) {
-        guard let request = Self.makeReminderRequest(for: habit) else {
+        // Finished / expired cycles must not keep or gain a reminder,
+        // even if reminderTime is still stored on the model.
+        guard habit.isInActiveCycle, let request = Self.makeReminderRequest(for: habit) else {
             cancelReminder(for: habit)
             return
         }
@@ -96,7 +118,25 @@ final class NotificationService: NSObject {
     }
 
     func cancelReminder(for habit: Habit) {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.reminderIdentifier(for: habit)])
+        let identifier = Self.reminderIdentifier(for: habit)
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+
+    /// Compares pending local notifications to the current habit list and
+    /// cancels reminders whose habit was deleted or is no longer active.
+    /// Safe to call on every launch and foreground.
+    func reconcilePendingReminders(habits: [Habit]) {
+        center.getPendingNotificationRequests { [weak self] requests in
+            guard let self else { return }
+            let identifiers = Self.reminderIdentifiersToCancel(
+                pendingIdentifiers: requests.map(\.identifier),
+                habits: habits
+            )
+            guard !identifiers.isEmpty else { return }
+            self.center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            self.center.removeDeliveredNotifications(withIdentifiers: identifiers)
+        }
     }
 }
 
