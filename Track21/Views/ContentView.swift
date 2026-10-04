@@ -21,8 +21,8 @@ struct ContentView: View {
     @State private var celebratingAchievements: [Achievement] = []
     @State private var buddyService = BuddyService.shared
     @State private var showBuddyNaming = false
-    @AppStorage("Track21HasSeenOnboarding") private var hasSeenOnboarding = false
-    @State private var showOnboarding = false
+    @AppStorage(FirstLaunchGuideLogic.seenKey) private var hasSeenFirstLaunchGuide = false
+    @State private var showFirstLaunchGuide = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -94,6 +94,12 @@ struct ContentView: View {
             }
 
             tabs
+                .overlay {
+                    if showFirstLaunchGuide {
+                        FirstLaunchGuideOverlay(onFinish: finishFirstLaunchGuide)
+                            .transition(.opacity)
+                    }
+                }
                 .onChange(of: viewModel.recentlyUnlockedAchievements) { _, newly in
                     guard !newly.isEmpty else { return }
                     withAnimation { celebratingAchievements = newly }
@@ -119,19 +125,11 @@ struct ContentView: View {
                 viewModel.recentHabitVictory = nil
             }
         }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            OnboardingView(onFinish: {
-                hasSeenOnboarding = true
-                showOnboarding = false
-                if !buddyService.hasNamedBuddy {
-                    showBuddyNaming = true
-                }
-            })
-        }
         .fullScreenCover(isPresented: $showBuddyNaming) {
             BuddyNamingView(onContinue: { name in
                 buddyService.saveBuddyName(name)
                 showBuddyNaming = false
+                presentFirstLaunchGuideIfNeeded()
             })
         }
         .onChange(of: scenePhase) { _, phase in
@@ -139,10 +137,13 @@ struct ContentView: View {
             NotificationService.shared.reconcilePendingReminders(habits: viewModel.habits)
         }
         .task {
-            if !hasSeenOnboarding {
-                showOnboarding = true
-            } else if !buddyService.hasNamedBuddy {
+            // The old 3-page intro carousel is gone. First launch is
+            // welcome/auth, then buddy naming if needed, then Home with
+            // the short first-launch guide.
+            if !buddyService.hasNamedBuddy {
                 showBuddyNaming = true
+            } else {
+                presentFirstLaunchGuideIfNeeded()
             }
 
             await NotificationService.shared.requestAuthorizationIfNeeded()
@@ -176,6 +177,22 @@ struct ContentView: View {
                     await viewModel.syncWithCloud(userId: userId)
                 }
             }
+        }
+    }
+
+    private func presentFirstLaunchGuideIfNeeded() {
+        guard FirstLaunchGuideLogic.shouldPresent(
+            hasSeenGuide: hasSeenFirstLaunchGuide,
+            buddyNamed: buddyService.hasNamedBuddy
+        ) else { return }
+        guard !showBuddyNaming else { return }
+        showFirstLaunchGuide = true
+    }
+
+    private func finishFirstLaunchGuide() {
+        hasSeenFirstLaunchGuide = true
+        withAnimation(.easeOut(duration: 0.2)) {
+            showFirstLaunchGuide = false
         }
     }
 

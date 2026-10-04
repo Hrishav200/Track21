@@ -151,9 +151,9 @@ struct LoginView: View {
     /// instead of a generic system glyph, so the login screen carries the
     /// same brand mark as the home screen. Deliberately compact — the value
     /// props row and trust-footer sentence that used to sit below this were
-    /// cut entirely: the onboarding carousel right after sign-in already
-    /// covers "build streaks / track progress / 21-day method", so login
-    /// doesn't need to sell the app again before letting someone in.
+    /// cut entirely: the first-launch guide on Home already covers how to
+    /// add a habit, mark it done, and open Stats, so login doesn't need to
+    /// sell the app again before letting someone in.
     private var heroSection: some View {
         VStack(spacing: 10) {
             ZStack {

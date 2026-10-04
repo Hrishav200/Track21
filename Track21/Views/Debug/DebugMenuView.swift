@@ -27,6 +27,7 @@ struct DebugMenuView: View {
     @State private var previewingVictory = false
     @State private var showingTrophyPreview = false
     @State private var previewingCompleteArchive = false
+    @State private var previewingFirstLaunchGuide = false
     @State private var seedMessage: String?
     @AppStorage("Track21ForceBuddyLite") private var forceBuddyLite = false
 
@@ -138,10 +139,13 @@ struct DebugMenuView: View {
                     }
                 }
 
-                Section("App Intro") {
-                    Button("Reset Intro Carousel") {
-                        UserDefaults.standard.set(false, forKey: "Track21HasSeenOnboarding")
+                Section("First-Launch Guide") {
+                    Button("Preview First-Launch Guide") {
+                        previewingFirstLaunchGuide = true
                     }
+                    Text("Five short steps: add a habit, mark it done, open Stats, write in Journal, and chat with Buddy. Doesn’t reset the seen flag until you finish or skip.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 Section("Habit Victory Screen") {
@@ -215,14 +219,23 @@ struct DebugMenuView: View {
                     buddyService.clearData()
                     freezeService.debugResetWallet()
                     premiumService.debugOverride = false
-                    UserDefaults.standard.set(false, forKey: "Track21HasSeenOnboarding")
+                    UserDefaults.standard.set(false, forKey: FirstLaunchGuideLogic.seenKey)
                 }
             } message: {
-                Text("Clears all habits, your buddy's name, the intro carousel, and resets the freeze wallet. This can't be undone.")
+                Text("Clears all habits, your buddy's name, the first-launch guide, and resets the freeze wallet. This can't be undone.")
             }
             .fullScreenCover(isPresented: $previewingVictory) {
                 HabitVictoryView(habit: Self.sampleVictoryHabit) {
                     previewingVictory = false
+                }
+            }
+            .fullScreenCover(isPresented: $previewingFirstLaunchGuide) {
+                ZStack {
+                    AppTheme.background.ignoresSafeArea()
+                    FirstLaunchGuideOverlay {
+                        UserDefaults.standard.set(true, forKey: FirstLaunchGuideLogic.seenKey)
+                        previewingFirstLaunchGuide = false
+                    }
                 }
             }
             .sheet(isPresented: $showingTrophyPreview) {

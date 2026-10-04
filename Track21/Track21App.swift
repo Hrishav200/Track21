@@ -20,6 +20,9 @@ struct Track21App: App {
         // As early as possible — without this, a reminder that fires while
         // the app happens to be in the foreground is silently dropped.
         NotificationService.shared.registerAsDelegate()
+        // Before any view reads the flag: existing users who already passed
+        // onboarding are marked done so the new guide never stops them.
+        FirstLaunchGuideLogic.migrateReturningUsersIfNeeded()
     }
 
     var body: some Scene {
@@ -50,13 +53,14 @@ struct Track21App: App {
                     if !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-buddy") {
                         BuddyService.shared.saveBuddyName("Buddy")
                     }
-                    // Same idea for the app-intro carousel — mark it seen so
-                    // it doesn't block every other test's path to the home
-                    // screen. Tests exercising it pass -uitest-fresh-onboarding,
-                    // which explicitly clears the flag instead (a stale
-                    // "seen" value could otherwise persist between runs).
-                    let sawOnboardingBefore = !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-onboarding")
-                    UserDefaults.standard.set(sawOnboardingBefore, forKey: "Track21HasSeenOnboarding")
+                    // The intro carousel is gone. Keep the legacy seen flag
+                    // set so a UI-test reset can't look like a user who never
+                    // passed the old intro (migration already ran in init).
+                    UserDefaults.standard.set(true, forKey: "Track21HasSeenOnboarding")
+                    // Don't let the first-launch guide cover every other UI test.
+                    let sawGuideBefore = !ProcessInfo.processInfo.arguments.contains("-uitest-fresh-guide")
+                    UserDefaults.standard.set(sawGuideBefore, forKey: FirstLaunchGuideLogic.seenKey)
+                    UserDefaults.standard.set(true, forKey: FirstLaunchGuideLogic.migratedKey)
                 }
 
                 // Seeds a habit with a mix of completed/frozen/missed days so
