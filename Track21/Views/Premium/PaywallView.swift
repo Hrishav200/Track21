@@ -152,6 +152,46 @@ struct PaywallView: View {
         }
     }
 
+    /// Billing terms under each product name, built from StoreKit rather
+    /// than the App Store Connect display name so the period is always
+    /// stated. The free trial is only mentioned while this Apple Account is
+    /// still eligible for it.
+    private func billingSubtitle(for product: Product) -> String {
+        guard let subscription = product.subscription else {
+            return "One-time purchase"
+        }
+        let cadence = Self.billedText(for: subscription.subscriptionPeriod)
+        if let offer = subscription.introductoryOffer,
+           offer.paymentMode == .freeTrial,
+           premiumService.introOfferEligibleIDs.contains(product.id) {
+            return "\(Self.lengthText(for: offer.period)) free trial, then \(cadence.lowercased())"
+        }
+        return cadence
+    }
+
+    private static func billedText(for period: Product.SubscriptionPeriod) -> String {
+        let value = period.value
+        switch period.unit {
+        case .day: return value == 1 ? "Billed daily" : "Billed every \(value) days"
+        case .week: return value == 1 ? "Billed weekly" : "Billed every \(value) weeks"
+        case .month: return value == 1 ? "Billed monthly" : "Billed every \(value) months"
+        case .year: return value == 1 ? "Billed yearly" : "Billed every \(value) years"
+        @unknown default: return "Renews automatically"
+        }
+    }
+
+    /// "7-day", "1-month" — StoreKit may report a week-long trial as either
+    /// 1 week or 7 days, so weeks are normalised to days.
+    private static func lengthText(for period: Product.SubscriptionPeriod) -> String {
+        switch period.unit {
+        case .day: return "\(period.value)-day"
+        case .week: return "\(period.value * 7)-day"
+        case .month: return "\(period.value)-month"
+        case .year: return "\(period.value)-year"
+        @unknown default: return "Introductory"
+        }
+    }
+
     private func productRow(_ product: Product) -> some View {
         let isAnnual = product.id == PremiumService.annualID
 
@@ -181,11 +221,9 @@ struct PaywallView: View {
                                 .cornerRadius(6)
                         }
                     }
-                    if isAnnual {
-                        Text("7-day free trial, then billed yearly")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    Text(billingSubtitle(for: product))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 Spacer()
                 if purchaseInFlight == product.id {

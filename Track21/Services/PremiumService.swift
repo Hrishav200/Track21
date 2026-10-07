@@ -22,6 +22,13 @@ final class PremiumService {
 
     private(set) var products: [Product] = []
     private(set) var hasActiveEntitlement = false
+    /// True only for a live monthly/annual subscription — a lifetime purchase
+    /// has nothing to manage, so Profile hides "Manage Subscription" for it.
+    private(set) var hasActiveSubscription = false
+    /// Subscription product IDs whose introductory offer (the annual free
+    /// trial) this Apple Account can still redeem. The paywall only promises
+    /// a trial for IDs in here.
+    private(set) var introOfferEligibleIDs: Set<String> = []
     private(set) var isLoadingProducts = false
     private(set) var purchaseError: String?
 
@@ -77,6 +84,7 @@ final class PremiumService {
             products = fetched.sorted { lhs, rhs in
                 Self.allProductIDs.firstIndex(of: lhs.id) ?? 0 < Self.allProductIDs.firstIndex(of: rhs.id) ?? 0
             }
+            await refreshIntroOfferEligibility()
             if products.isEmpty {
                 purchaseError = "No Track21 Pro products found. For local testing, run from Xcode with Track21.storekit selected in the scheme. For a device Sandbox test, create matching IAP products in App Store Connect."
                 NSLog("PremiumService: Product.products returned empty for %@", Self.allProductIDs.joined(separator: ", "))
@@ -137,13 +145,32 @@ final class PremiumService {
 
     func refreshEntitlements() async {
         var active = false
+        var subscribed = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
             if Self.allProductIDs.contains(transaction.productID) {
                 active = true
+                if transaction.productType == .autoRenewable {
+                    subscribed = true
+                }
             }
         }
         hasActiveEntitlement = active
+        hasActiveSubscription = subscribed
+        // A purchase or expiry can change trial eligibility, so re-check.
+        await refreshIntroOfferEligibility()
+    }
+
+    private func refreshIntroOfferEligibility() async {
+        var eligible: Set<String> = []
+        for product in products {
+            guard let subscription = product.subscription,
+                  subscription.introductoryOffer != nil else { continue }
+            if await subscription.isEligibleForIntroOffer {
+                eligible.insert(product.id)
+            }
+        }
+        introOfferEligibleIDs = eligible
     }
 
     private func listenForTransactionUpdates() -> Task<Void, Never> {

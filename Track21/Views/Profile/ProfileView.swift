@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StoreKit
 internal import Auth
 
 struct ProfileView: View {
@@ -23,6 +24,8 @@ struct ProfileView: View {
     @State private var successMessage: String?
     @State private var showingPaywall = false
     @State private var paywallTrigger: PaywallView.Trigger = .general
+    @State private var premiumService = PremiumService.shared
+    @State private var showingManageSubscriptions = false
     @State private var buddyService = BuddyService.shared
     @State private var showingClearChatAlert = false
     @State private var showingArchive = false
@@ -94,6 +97,7 @@ struct ProfileView: View {
             .sheet(isPresented: $showingPaywall) {
                 PaywallView(trigger: paywallTrigger)
             }
+            .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
             .sheet(isPresented: $showingArchive) {
                 HabitArchiveView(viewModel: viewModel)
             }
@@ -192,6 +196,24 @@ struct ProfileView: View {
                     Spacer()
                     Text("Active")
                         .foregroundColor(.secondary)
+                }
+
+                // Lifetime owners have no subscription to manage.
+                if premiumService.hasActiveSubscription {
+                    Button {
+                        showingManageSubscriptions = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            iconBadge("creditcard.fill", color: .gray)
+                            Text("Manage Subscription")
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(Color(.tertiaryLabel))
+                        }
+                    }
+                    .accessibilityHint("Opens your App Store subscription settings")
                 }
             } else {
                 Button {
