@@ -98,6 +98,8 @@ struct PaywallView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
                     }
+
+                    legalFooter
                 }
                 .padding(.bottom, 24)
             }
@@ -113,6 +115,31 @@ struct PaywallView: View {
                 if isActive { dismiss() }
             }
         }
+    }
+
+    private static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    private static let privacyURL = URL(string: "https://hrishav200.github.io/Track21/privacy/")!
+
+    /// Auto-renew disclosure plus the Terms of Use and Privacy Policy links
+    /// App Review expects on any screen that sells a subscription
+    /// (guideline 3.1.2). Terms points at Apple's standard EULA.
+    private var legalFooter: some View {
+        VStack(spacing: 10) {
+            Text("Payment is charged to your Apple Account at confirmation of purchase. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel any time in your Apple Account settings. Lifetime is a one-time purchase.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 6) {
+                Link("Terms of Use", destination: Self.termsURL)
+                Text("·")
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
+                Link("Privacy Policy", destination: Self.privacyURL)
+            }
+            .font(.caption.weight(.semibold))
+        }
+        .padding(.horizontal, 32)
     }
 
     private func featureRow(icon: String, text: String) -> some View {
