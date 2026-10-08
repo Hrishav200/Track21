@@ -24,27 +24,15 @@ struct AddHabitView: View {
     @State private var intervalHours = 4
     @State private var intervalMinutes = 0
     @State private var showHabitSuggestions = false
-    @State private var showGoalSuggestions = false
+    /// The last description we filled in from a suggestion. Lets typing a new
+    /// matching name swap it out, while text the user typed is never touched.
+    @State private var lastAutoFilledGoal: String?
     @FocusState private var focusedField: InputField?
 
     private enum InputField: Hashable {
         case name
         case goal
     }
-
-    private static let habitSuggestions = [
-        "Walk", "Exercise", "Drink Water", "Read", "Meditate",
-        "Stretch", "Sleep 8 Hours", "No Sugar", "Journal",
-        "Take Vitamins", "Practice Gratitude", "Eat Vegetables",
-        "Learn Something", "Digital Detox", "Deep Work"
-    ]
-
-    private static let goalPresets = [
-        "Stay healthy", "Move my body", "Build consistency",
-        "Improve my focus", "Reduce stress", "Feel more energized",
-        "Sleep better", "Make time for myself", "Learn something new",
-        "Support my wellbeing"
-    ]
 
     let colors = ["FFB6A3", "6BB6FF", "5DD167", "FFD700", "FF6B9D", "A78BFA"]
     let colorNames = ["Coral", "Blue", "Green", "Gold", "Pink", "Purple"]
@@ -85,39 +73,42 @@ struct AddHabitView: View {
             }
             .sheet(isPresented: $showHabitSuggestions) {
                 SuggestionPickerSheet(
-                    title: "Habit suggestions",
-                    subtitle: "Pick one to start — you can still edit it after.",
-                    items: Self.habitSuggestions,
-                    selected: name,
-                    icon: "sparkles"
+                    suggestions: HabitSuggestion.all,
+                    selectedTitle: name
                 ) { picked in
-                    name = picked
+                    applySuggestion(picked)
                     showHabitSuggestions = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        focusedField = .goal
-                    }
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(24)
             }
-            .sheet(isPresented: $showGoalSuggestions) {
-                SuggestionPickerSheet(
-                    title: "Goal suggestions",
-                    subtitle: "What does success look like for you?",
-                    items: Self.goalPresets,
-                    selected: goal,
-                    icon: "flag.fill"
-                ) { picked in
-                    goal = picked
-                    showGoalSuggestions = false
-                    focusedField = nil
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(24)
+            .onChange(of: name) { _, newName in
+                autoFillGoal(forName: newName)
             }
         }
+    }
+
+    // MARK: - Suggestion auto-fill
+
+    /// Picking a suggestion is an explicit choice, so it fills both fields.
+    private func applySuggestion(_ suggestion: HabitSuggestion) {
+        goal = suggestion.description
+        lastAutoFilledGoal = suggestion.description
+        name = suggestion.title
+        focusedField = nil
+    }
+
+    /// Typing a name that matches a suggestion fills the description, but only
+    /// when it's empty or still holds a previous auto-filled description.
+    private func autoFillGoal(forName newName: String) {
+        guard let description = HabitSuggestionMatcher.autoFilledDescription(
+            forName: newName,
+            currentDescription: goal,
+            lastAutoFilled: lastAutoFilledGoal
+        ) else { return }
+        goal = description
+        lastAutoFilledGoal = description
     }
 
     // MARK: - Name and goal
@@ -172,10 +163,6 @@ struct AddHabitView: View {
                     field: .goal,
                     submitLabel: .done
                 )
-                suggestionsButton {
-                    focusedField = nil
-                    showGoalSuggestions = true
-                }
             }
         }
         .padding(16)
@@ -459,12 +446,9 @@ struct AddHabitView: View {
 // MARK: - Suggestion picker sheet
 
 private struct SuggestionPickerSheet: View {
-    let title: String
-    let subtitle: String
-    let items: [String]
-    let selected: String
-    let icon: String
-    let onPick: (String) -> Void
+    let suggestions: [HabitSuggestion]
+    let selectedTitle: String
+    let onPick: (HabitSuggestion) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -476,28 +460,25 @@ private struct SuggestionPickerSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 12) {
-                            Image(systemName: icon)
+                            Image(systemName: "sparkles")
                                 .font(.title3.weight(.semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 42, height: 42)
                                 .background(AppTheme.primary)
                                 .clipShape(Circle())
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(title)
+                                Text("Habit suggestions")
                                     .font(.title3.weight(.bold))
-                                Text(subtitle)
+                                Text("Pick one to fill in the name and description. You can still edit both.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
                         }
                         .padding(.horizontal, 4)
 
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 140), spacing: 10)],
-                            spacing: 10
-                        ) {
-                            ForEach(items, id: \.self) { item in
-                                suggestionRow(item)
+                        LazyVStack(spacing: 10) {
+                            ForEach(suggestions) { suggestion in
+                                suggestionCard(suggestion)
                             }
                         }
                     }
@@ -513,35 +494,55 @@ private struct SuggestionPickerSheet: View {
         }
     }
 
-    private func suggestionRow(_ item: String) -> some View {
-        let isSelected = selected == item
+    private func suggestionCard(_ suggestion: HabitSuggestion) -> some View {
+        let isSelected = HabitSuggestionMatcher.normalized(selectedTitle)
+            == HabitSuggestionMatcher.normalized(suggestion.title)
         return Button {
-            onPick(item)
+            onPick(suggestion)
         } label: {
-            HStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: suggestion.icon)
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundColor(AppTheme.primary)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(AppTheme.primary.opacity(0.55), lineWidth: 1.5)
+                    )
+                    .background(AppTheme.primary.opacity(0.10))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(suggestion.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundColor(.primary)
+                    Text(suggestion.description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.title3)
+                        .foregroundColor(AppTheme.primary)
                 }
-                Text(item)
-                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .foregroundColor(isSelected ? .white : .primary)
-            .background(isSelected ? AppTheme.primary : AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color.clear : AppTheme.primary.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isSelected ? AppTheme.primary : Color.primary.opacity(0.06), lineWidth: isSelected ? 2 : 1)
             )
-            .shadow(color: Color.black.opacity(isSelected ? 0.08 : 0.04), radius: 6, y: 2)
+            .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
