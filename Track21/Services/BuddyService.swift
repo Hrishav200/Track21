@@ -69,12 +69,15 @@ final class BuddyService {
     var hasNamedBuddy: Bool { buddyName != nil }
     var chatDayCount: Int { chatDays.count }
 
-    func recordChatActivity(on date: Date = Date()) {
+    /// - Parameter countsTowardLimit: false for guided add/edit-habit turns,
+    ///   which shouldn't use up the free daily chat messages.
+    func recordChatActivity(on date: Date = Date(), countsTowardLimit: Bool = true) {
         let key = Self.dayFormatter.string(from: date)
         if !chatDays.contains(key) {
             chatDays.insert(key)
             UserDefaults.standard.set(Array(chatDays), forKey: chatDaysKey)
         }
+        guard countsTowardLimit else { return }
 
         let storedDate = UserDefaults.standard.object(forKey: dailyMessageDateKey) as? Date
         if let storedDate, Calendar.current.isDate(storedDate, inSameDayAs: date) {

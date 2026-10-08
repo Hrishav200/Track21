@@ -297,7 +297,8 @@ enum BuddyLogic {
         "Motivate me",
         "How am I doing?",
         "What should I do today?",
-        "I missed yesterday"
+        "I missed yesterday",
+        "Add a habit"
     ]
 
     /// Soft upgrade copy when the device *could* run full Buddy but isn't.
@@ -469,9 +470,9 @@ enum BuddyLogic {
 
         case .habitManagement:
             return [
-                "I can't add or edit habits in Lite mode — use Add Habit on Home (or turn on Apple Intelligence for full Buddy).",
-                "Habit changes happen on Home → Add Habit. In Lite I stay in coach mode only.",
-                "Got it — for adding/removing habits, use the Home screen. Ask me to motivate or check your status instead."
+                "Want to add or change a habit? Say \u{201C}add a habit\u{201D} or \u{201C}rename Walk to Run\u{201D} and I'll walk you through it, or use Add Habit on Home.",
+                "I can set up or edit a habit with you right here. Try \u{201C}add a habit\u{201D}. Deleting still happens on Home.",
+                "Say \u{201C}add a habit\u{201D} or \u{201C}change the goal of Walk\u{201D} and I'll guide you. To delete one, long-press it on Home."
             ]
 
         case .fallback:

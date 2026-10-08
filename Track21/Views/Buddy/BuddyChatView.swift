@@ -33,7 +33,8 @@ struct BuddyChatView: View {
                         buddyName: buddyName,
                         viewModel: viewModel,
                         availabilityReason: .unsupportedOS,
-                        isTabActive: isTabActive
+                        isTabActive: isTabActive,
+                        authService: authService
                     )
                 }
             }
@@ -57,10 +58,16 @@ private struct BuddyChatAvailableView: View {
     @State private var isThinking = false
     @State private var inputFieldID = UUID()
     @FocusState private var isInputFocused: Bool
+    /// False while the user has scrolled up to read history.
+    @State private var isNearBottom = true
     @State private var buddyService = BuddyService.shared
     @State private var premiumService = PremiumService.shared
     @State private var showingPaywall = false
     @State private var showingHistory = false
+    /// Guided add/edit-habit conversation (shared with Buddy Lite). Habit
+    /// changes never come from the model — only from this flow's
+    /// confirmation card.
+    @State private var habitFlow = BuddyHabitFlowState()
 
     /// Messages from the active conversation, or empty if none.
     private var messages: [ChatMessage] {
@@ -91,7 +98,8 @@ private struct BuddyChatAvailableView: View {
                     availabilityReason: (forceBuddyLite && availability == .available)
                         ? .deviceNotEligible
                         : availability,
-                    isTabActive: isTabActive
+                    isTabActive: isTabActive,
+                    authService: authService
                 )
             }
         }
@@ -133,6 +141,7 @@ private struct BuddyChatAvailableView: View {
                     Button {
                         buddyService.startNewConversation()
                         engine = BuddyChatEngine(buddyName: buddyName)
+                        habitFlow.reset()
                     } label: {
                         Image(systemName: "square.and.pencil")
                     }
@@ -147,6 +156,7 @@ private struct BuddyChatAvailableView: View {
             ChatHistoryView(buddyService: buddyService) { conversation in
                 buddyService.resumeConversation(conversation)
                 engine = BuddyChatEngine(buddyName: buddyName)
+                habitFlow.reset()
                 showingHistory = false
             }
         }
@@ -171,6 +181,14 @@ private struct BuddyChatAvailableView: View {
                                     )
                                     .padding(.leading, 4)
                                 }
+
+                                if let replies = message.quickReplies, !replies.isEmpty,
+                                   !message.isFromUser, message.id == messages.last?.id, !isThinking {
+                                    BuddyQuickReplyChips(replies: replies) { reply in
+                                        send(reply.value)
+                                    }
+                                    .padding(.leading, 4)
+                                }
                             }
                             .id(message.id)
                         }
@@ -182,22 +200,22 @@ private struct BuddyChatAvailableView: View {
                             }
                         }
 
-                        // A dedicated, always-empty anchor rather than
-                        // scrolling to the newest message bubble directly —
-                        // scrolling to a bubble whose multiline text hasn't
-                        // finished laying out yet in the LazyVStack can land
-                        // short, leaving it clipped under the nav bar.
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottom")
+                        // Always-empty anchor: scrolling to it (rather than to a
+                        // bubble that may not be measured yet) reaches the true
+                        // bottom, and its visibility tracks "reading near bottom".
+                        BuddyChatBottomAnchor(isNearBottom: $isNearBottom)
                     }
                     .padding()
                 }
+                .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.immediately)
                 .onTapGesture { isInputFocused = false }
-                .onChange(of: buddyService.activeConversation?.messages.count) { scrollToBottom(using: proxy) }
-                .onChange(of: isThinking) { scrollToBottom(using: proxy) }
-                .onChange(of: isInputFocused) { scrollToBottom(using: proxy) }
+                .buddyChatAutoScroll(
+                    proxy: proxy,
+                    signature: BuddyChatScrollSignature(messages: messages, isThinking: isThinking),
+                    isNearBottom: $isNearBottom,
+                    isInputFocused: isInputFocused
+                )
             }
 
             Divider()
@@ -228,7 +246,7 @@ private struct BuddyChatAvailableView: View {
                     .focused($isInputFocused)
                     .id(inputFieldID)
 
-                Button(action: send) {
+                Button { send() } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 30))
                         .foregroundColor(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : AppTheme.primary)
@@ -240,46 +258,55 @@ private struct BuddyChatAvailableView: View {
         }
     }
 
-    /// Deferred a tick so the just-added message/keyboard-avoidance layout
-    /// has actually settled before scrolling — scrolling within the same
-    /// run loop pass as the content change is what left the newest reply
-    /// clipped under the nav bar.
-    private func scrollToBottom(using proxy: ScrollViewProxy) {
-        DispatchQueue.main.async {
-            withAnimation {
-                proxy.scrollTo("bottom", anchor: .bottom)
-            }
-        }
+    private var habitSnapshots: [BuddyHabitSnapshot] {
+        viewModel.habits.map { BuddyHabitSnapshot($0) }
     }
 
-    private func send() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// - Parameter quickReply: text from a tapped chip; nil sends the input field.
+    private func send(_ quickReply: String? = nil) {
+        let text = (quickReply ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let engine else { return }
 
-        guard BuddyChatUsageLogic.canSendMessage(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium) else {
-            showingPaywall = true
-            return
+        // Guided add/edit turns don't use up the free daily chat messages.
+        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots)
+        if !isHabitFlowTurn {
+            guard BuddyChatUsageLogic.canSendMessage(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium) else {
+                showingPaywall = true
+                return
+            }
         }
 
         // Auto-start new conversation if last message is old
         if shouldStartNewConversation() {
             buddyService.startNewConversation()
             self.engine = BuddyChatEngine(buddyName: buddyName)
+            habitFlow.reset()
         }
 
         let userMessage = ChatMessage(isFromUser: true, text: text)
         buddyService.appendMessage(userMessage)
-        buddyService.recordChatActivity()
-        inputText = ""
-        // Multiline TextField(axis: .vertical) can visually keep the old
-        // text after clearing the binding while still focused — forcing a
-        // fresh identity guarantees it actually clears on screen.
-        inputFieldID = UUID()
-        isInputFocused = true
+        buddyService.recordChatActivity(countsTowardLimit: !isHabitFlowTurn)
+        if quickReply == nil {
+            inputText = ""
+            // Multiline TextField(axis: .vertical) can visually keep the old
+            // text after clearing the binding while still focused — forcing a
+            // fresh identity guarantees it actually clears on screen.
+            inputFieldID = UUID()
+            isInputFocused = true
+        }
 
         if BuddyLogic.containsCrisisSignal(text) {
+            habitFlow.reset()
             let crisisMessage = ChatMessage(isFromUser: false, text: BuddyLogic.crisisResponse)
             buddyService.appendMessage(crisisMessage)
+            return
+        }
+
+        // Add/edit habit requests are handled deterministically by the
+        // shared flow (same as Buddy Lite) — the model is never asked to
+        // change habits, so it can't write anything silently.
+        if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots) {
+            BuddyHabitActionCoordinator.post(flowReply, to: buddyService)
             return
         }
 
@@ -291,18 +318,27 @@ private struct BuddyChatAvailableView: View {
 
                 let reply = try await engine.reply(to: text)
 
-                // Parse the response for action markers. The model can
-                // include one even when the user didn't ask for habit
-                // management, so only honor it when the user's own message
-                // actually requested it — independent of what the model did.
-                let parseResult = BuddyActionParser.parse(reply, habits: viewModel.habits)
-                let action = BuddyLogic.requestsHabitManagement(text) ? parseResult.action : nil
+                // The model is told not to emit action markers; strip any
+                // stray one and ignore it. Habit changes only come from
+                // BuddyHabitFlow + the confirmation card.
+                let cleaned = BuddyActionParser.parse(reply, habits: viewModel.habits).cleanedText
+
+                // Safety net: if the model still deflects a habit request
+                // ("I can't add habits…"), hand over to the guided flow.
+                if BuddyHabitFlow.replyDeflectsHabitManagement(cleaned) {
+                    let flowReply = BuddyHabitFlow.safetyNetReply(
+                        forUserText: text,
+                        state: &habitFlow,
+                        habits: habitSnapshots
+                    )
+                    BuddyHabitActionCoordinator.post(flowReply, to: buddyService)
+                    isThinking = false
+                    return
+                }
 
                 let buddyMessage = ChatMessage(
                     isFromUser: false,
-                    text: parseResult.cleanedText,
-                    pendingAction: action,
-                    actionStatus: action != nil ? .pending : nil
+                    text: cleaned.isEmpty ? "I\u{2019}m here. Tell me more." : cleaned
                 )
                 buddyService.appendMessage(buddyMessage)
             } catch {
@@ -315,91 +351,17 @@ private struct BuddyChatAvailableView: View {
     }
 
     private func confirmAction(message: ChatMessage, action: BuddyAction) {
-        buddyService.updateMessageActionStatus(messageID: message.id, status: .confirmed)
-
-        Task {
-            let success = await executeAction(action)
-            buddyService.updateMessageActionStatus(messageID: message.id, status: success ? .executed : .failed)
-
-            // Send a follow-up message from the buddy
-            let followUpText = success
-                ? actionSuccessMessage(for: action)
-                : actionFailureMessage(for: action)
-            let followUpMessage = ChatMessage(isFromUser: false, text: followUpText)
-            buddyService.appendMessage(followUpMessage)
-        }
+        BuddyHabitActionCoordinator.confirm(
+            messageID: message.id,
+            action: action,
+            buddyService: buddyService,
+            viewModel: viewModel,
+            userId: authService.currentUser?.id
+        )
     }
 
     private func cancelAction(message: ChatMessage) {
-        buddyService.updateMessageActionStatus(messageID: message.id, status: .cancelled)
-
-        // Send a friendly cancellation message
-        let cancelMessage = ChatMessage(
-            isFromUser: false,
-            text: "No problem! Let me know if you'd like to do something else."
-        )
-        buddyService.appendMessage(cancelMessage)
-    }
-
-    private func executeAction(_ action: BuddyAction) async -> Bool {
-        switch action.type {
-        case .addHabit:
-            let color = action.habitColor ?? "6BB6FF"
-            let habit = Habit(
-                name: action.habitName,
-                goal: action.habitGoal ?? "Daily",
-                color: color,
-                userId: authService.currentUser?.id
-            )
-            viewModel.addHabit(habit)
-            return true
-
-        case .updateHabit:
-            guard let targetID = action.targetHabitID,
-                  let habit = viewModel.habits.first(where: { $0.id == targetID }) else {
-                return false
-            }
-            if let newGoal = action.habitGoal {
-                habit.goal = newGoal
-            }
-            if let newColor = action.habitColor {
-                habit.color = newColor
-            }
-            habit.updatedAt = Date()
-            habit.syncStatus = .pending
-            viewModel.updateHabit(habit)
-            return true
-
-        case .deleteHabit:
-            guard let targetID = action.targetHabitID,
-                  let habit = viewModel.habits.first(where: { $0.id == targetID }) else {
-                return false
-            }
-            await viewModel.deleteHabit(habit)
-            return true
-        }
-    }
-
-    private func actionSuccessMessage(for action: BuddyAction) -> String {
-        switch action.type {
-        case .addHabit:
-            return "Done! I've added \"\(action.habitName)\" to your habits. You've got this — let's build that streak!"
-        case .updateHabit:
-            return "All set! I've updated \"\(action.habitName)\" for you. Keep up the great work!"
-        case .deleteHabit:
-            return "Done! I've removed \"\(action.habitName)\" from your habits. If you ever want to start it again, just let me know!"
-        }
-    }
-
-    private func actionFailureMessage(for action: BuddyAction) -> String {
-        switch action.type {
-        case .addHabit:
-            return "Hmm, something went wrong and I couldn't add that habit. Want to try again?"
-        case .updateHabit:
-            return "I couldn't find that habit to update — it might have been deleted. Want me to add it as a new habit instead?"
-        case .deleteHabit:
-            return "I couldn't find that habit to delete — it might have already been removed."
-        }
+        BuddyHabitActionCoordinator.cancel(messageID: message.id, buddyService: buddyService)
     }
 }
 

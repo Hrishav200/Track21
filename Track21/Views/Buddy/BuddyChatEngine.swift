@@ -54,7 +54,8 @@ final class BuddyChatEngine {
     }
 
     /// Updates the habits context for the current session. Call before each
-    /// request so the AI knows what habits exist for update/delete operations.
+    /// request so replies can mention the user's real habits. Habit changes
+    /// themselves go through BuddyHabitFlow + the confirmation card, never the model.
     func updateHabitsContext(_ habits: [Habit]) {
         currentHabits = habits
     }
@@ -99,31 +100,13 @@ final class BuddyChatEngine {
 
         \(habitsList)
 
-        HABIT MANAGEMENT: You can help users add, update, or delete habits — but ONLY when they explicitly ask you \
-        to. The DEFAULT for every message is to reply with plain encouragement and NO action marker at all. Most \
-        messages (check-ins, venting, small talk, questions about a streak, general chat) should never include a \
-        marker.
-
-        Action marker formats (use exactly this syntax, only when the rules below are met):
-        - To add a habit: [ACTION:ADD_HABIT name="Habit Name" goal="Goal description" color="6BB6FF"]
-        - To update a habit: [ACTION:UPDATE_HABIT name="Existing Habit Name" newGoal="New goal"]
-        - To delete a habit: [ACTION:DELETE_HABIT name="Habit Name"]
-
-        Rules:
-        1. Only include an action marker when the user's message is an explicit, direct instruction to add, update, \
-        or delete a specific habit (e.g., "add a habit called Meditate", "delete my Running habit", "change my \
-        Reading goal to 30 pages"). Talking about a habit, mentioning it's hard, or asking for motivation about it \
-        is NOT a request to manage it — do not include a marker in those cases, even if a habit name comes up.
-        2. If you are not certain the user is asking you to add/update/delete a habit, do not include a marker — \
-        just respond conversationally.
-        3. If the user's request is ambiguous (e.g., "add a habit" without details), ask clarifying questions instead of guessing, and don't include a marker yet.
-        4. For updates and deletes, use the exact habit name from the current habits list.
-        5. If the user asks to delete or update a habit that doesn't exist, let them know kindly.
-        6. The color should be a 6-character hex code without the # (e.g., "6BB6FF" for blue, "4CAF50" for green).
-        7. Always write a friendly, encouraging message before the action marker — the marker will be hidden from the user.
-
-        Example of what NOT to do: user says "I'm struggling to keep up with my Running habit" — this is a request \
-        for encouragement, not a management request. Reply with support only, no marker.
+        HABIT MANAGEMENT: You CAN help the user add and edit habits right here in this chat. The app runs a \
+        short guided flow (name, theme, goal) and shows a confirmation card before anything changes, so you never \
+        change habits yourself and never claim a habit was added or changed. Never say you can't add, create, or \
+        edit habits, and never tell the user to tap a button or go somewhere else in the app to do it. If the user \
+        seems to want a new habit or a change, reply in one short, warm line inviting them, for example: \
+        "Love that! Just say 'add a habit' and I'll set it up with you." Habits can't be deleted in chat; for that, \
+        they long-press the habit on Home. Never output action markers, brackets, JSON, or commands.
         """
     }
 }

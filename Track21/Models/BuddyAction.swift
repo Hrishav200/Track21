@@ -34,6 +34,9 @@ struct BuddyAction: Identifiable, Equatable, Codable {
     let habitColor: String?
     let targetHabitID: UUID?  // For update/delete — resolved at parse time
     let displayText: String   // Human-readable summary for the UI
+    /// For updates: the new name when the habit is being renamed. Optional so
+    /// previously persisted chat history still decodes.
+    var newHabitName: String?
 
     init(
         id: UUID = UUID(),
@@ -42,7 +45,8 @@ struct BuddyAction: Identifiable, Equatable, Codable {
         habitGoal: String? = nil,
         habitColor: String? = nil,
         targetHabitID: UUID? = nil,
-        displayText: String
+        displayText: String,
+        newHabitName: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -51,5 +55,6 @@ struct BuddyAction: Identifiable, Equatable, Codable {
         self.habitColor = habitColor
         self.targetHabitID = targetHabitID
         self.displayText = displayText
+        self.newHabitName = newHabitName
     }
 }

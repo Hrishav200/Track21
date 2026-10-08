@@ -16,6 +16,9 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     let timestamp: Date
     var pendingAction: BuddyAction?
     var actionStatus: ActionStatus?
+    /// Tappable answers offered under a Buddy message (theme chips, goal
+    /// suggestion, habit picker…). Optional so older history still decodes.
+    var quickReplies: [BuddyQuickReply]?
 
     init(
         id: UUID = UUID(),
@@ -23,7 +26,8 @@ struct ChatMessage: Codable, Identifiable, Equatable {
         text: String,
         timestamp: Date = Date(),
         pendingAction: BuddyAction? = nil,
-        actionStatus: ActionStatus? = nil
+        actionStatus: ActionStatus? = nil,
+        quickReplies: [BuddyQuickReply]? = nil
     ) {
         self.id = id
         self.isFromUser = isFromUser
@@ -31,6 +35,32 @@ struct ChatMessage: Codable, Identifiable, Equatable {
         self.timestamp = timestamp
         self.pendingAction = pendingAction
         self.actionStatus = actionStatus
+        self.quickReplies = quickReplies
+    }
+}
+
+/// A one-tap reply chip under a Buddy message. Tapping sends `value` as the
+/// user's next message.
+struct BuddyQuickReply: Codable, Equatable, Hashable, Identifiable {
+    enum Kind: String, Codable {
+        case option
+        case suggestion
+        case cancel
+    }
+
+    let label: String
+    let value: String
+    /// Theme/habit colour dot shown on the chip.
+    var colorHex: String?
+    var kind: Kind
+
+    var id: String { "\(kind.rawValue)|\(label)" }
+
+    init(label: String, value: String, colorHex: String? = nil, kind: Kind = .option) {
+        self.label = label
+        self.value = value
+        self.colorHex = colorHex
+        self.kind = kind
     }
 }
 

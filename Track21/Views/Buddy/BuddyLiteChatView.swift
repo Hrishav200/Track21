@@ -9,22 +9,29 @@
 
 import SwiftUI
 import UIKit
+internal import Auth
 
 struct BuddyLiteChatView: View {
     let buddyName: String
     @Bindable var viewModel: HabitViewModel
     let availabilityReason: BuddyAvailability
     var isTabActive: Bool = true
+    /// Used for the signed-in user id when Buddy adds a habit (same as AddHabitView).
+    var authService: AuthService? = nil
 
     @State private var inputText = ""
     @State private var isThinking = false
     @State private var inputFieldID = UUID()
     @FocusState private var isInputFocused: Bool
+    /// False while the user has scrolled up to read history.
+    @State private var isNearBottom = true
     @State private var buddyService = BuddyService.shared
     @State private var premiumService = PremiumService.shared
     @State private var showingPaywall = false
     @State private var showingHistory = false
     @Environment(\.openURL) private var openURL
+    /// Guided add/edit-habit conversation shared with full Buddy.
+    @State private var habitFlow = BuddyHabitFlowState()
 
     private var messages: [ChatMessage] {
         buddyService.activeConversation?.messages ?? []
@@ -59,8 +66,38 @@ struct BuddyLiteChatView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(messages) { message in
-                            BuddyChatBubble(message: message)
-                                .id(message.id)
+                            VStack(alignment: .leading, spacing: 8) {
+                                BuddyChatBubble(message: message)
+
+                                if let action = message.pendingAction {
+                                    BuddyActionCard(
+                                        action: action,
+                                        status: message.actionStatus ?? .pending,
+                                        onConfirm: {
+                                            BuddyHabitActionCoordinator.confirm(
+                                                messageID: message.id,
+                                                action: action,
+                                                buddyService: buddyService,
+                                                viewModel: viewModel,
+                                                userId: authService?.currentUser?.id
+                                            )
+                                        },
+                                        onCancel: {
+                                            BuddyHabitActionCoordinator.cancel(messageID: message.id, buddyService: buddyService)
+                                        }
+                                    )
+                                    .padding(.leading, 4)
+                                }
+
+                                if let replies = message.quickReplies, !replies.isEmpty,
+                                   !message.isFromUser, message.id == messages.last?.id, !isThinking {
+                                    BuddyQuickReplyChips(replies: replies) { reply in
+                                        send(reply.value)
+                                    }
+                                    .padding(.leading, 4)
+                                }
+                            }
+                            .id(message.id)
                         }
 
                         if isThinking {
@@ -76,17 +113,22 @@ struct BuddyLiteChatView: View {
                                 .padding(.top, 4)
                         }
 
-                        Color.clear
-                            .frame(height: 1)
-                            .id("bottom")
+                        // Always-empty anchor: scrolling to it (rather than to a
+                        // bubble that may not be measured yet) reaches the true
+                        // bottom, and its visibility tracks "reading near bottom".
+                        BuddyChatBottomAnchor(isNearBottom: $isNearBottom)
                     }
                     .padding()
                 }
+                .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.immediately)
                 .onTapGesture { isInputFocused = false }
-                .onChange(of: buddyService.activeConversation?.messages.count) { scrollToBottom(using: proxy) }
-                .onChange(of: isThinking) { scrollToBottom(using: proxy) }
-                .onChange(of: isInputFocused) { scrollToBottom(using: proxy) }
+                .buddyChatAutoScroll(
+                    proxy: proxy,
+                    signature: BuddyChatScrollSignature(messages: messages, isThinking: isThinking),
+                    isNearBottom: $isNearBottom,
+                    isInputFocused: isInputFocused
+                )
             }
 
             Divider()
@@ -117,7 +159,7 @@ struct BuddyLiteChatView: View {
                     .focused($isInputFocused)
                     .id(inputFieldID)
 
-                Button(action: send) {
+                Button { send() } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 30))
                         .foregroundColor(
@@ -231,6 +273,7 @@ struct BuddyLiteChatView: View {
     }
 
     private func startLiteConversation() {
+        habitFlow.reset()
         let opener = BuddyLogic.liteReply(
             to: "hey",
             habits: viewModel.habits,
@@ -240,24 +283,25 @@ struct BuddyLiteChatView: View {
         buddyService.startNewConversation(greeting: opener)
     }
 
-    private func scrollToBottom(using proxy: ScrollViewProxy) {
-        DispatchQueue.main.async {
-            withAnimation {
-                proxy.scrollTo("bottom", anchor: .bottom)
-            }
-        }
+    private var habitSnapshots: [BuddyHabitSnapshot] {
+        viewModel.habits.map { BuddyHabitSnapshot($0) }
     }
 
-    private func send() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// - Parameter quickReply: text from a tapped chip; nil sends the input field.
+    private func send(_ quickReply: String? = nil) {
+        let text = (quickReply ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        guard BuddyChatUsageLogic.canSendMessage(
-            sentToday: buddyService.messagesSentToday,
-            isPremium: premiumService.isPremium
-        ) else {
-            showingPaywall = true
-            return
+        // Guided add/edit turns don't use up the free daily chat messages.
+        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots)
+        if !isHabitFlowTurn {
+            guard BuddyChatUsageLogic.canSendMessage(
+                sentToday: buddyService.messagesSentToday,
+                isPremium: premiumService.isPremium
+            ) else {
+                showingPaywall = true
+                return
+            }
         }
 
         if shouldStartNewConversation() {
@@ -266,12 +310,15 @@ struct BuddyLiteChatView: View {
 
         let userMessage = ChatMessage(isFromUser: true, text: text)
         buddyService.appendMessage(userMessage)
-        buddyService.recordChatActivity()
-        inputText = ""
-        inputFieldID = UUID()
-        isInputFocused = true
+        buddyService.recordChatActivity(countsTowardLimit: !isHabitFlowTurn)
+        if quickReply == nil {
+            inputText = ""
+            inputFieldID = UUID()
+            isInputFocused = true
+        }
 
         if BuddyLogic.containsCrisisSignal(text) {
+            habitFlow.reset()
             buddyService.appendMessage(ChatMessage(isFromUser: false, text: BuddyLogic.crisisResponse))
             return
         }
@@ -279,12 +326,16 @@ struct BuddyLiteChatView: View {
         isThinking = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
-            let reply = BuddyLogic.liteReply(
-                to: text,
-                habits: viewModel.habits,
-                buddyName: buddyName
-            )
-            buddyService.appendMessage(ChatMessage(isFromUser: false, text: reply))
+            if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots) {
+                BuddyHabitActionCoordinator.post(flowReply, to: buddyService)
+            } else {
+                let reply = BuddyLogic.liteReply(
+                    to: text,
+                    habits: viewModel.habits,
+                    buddyName: buddyName
+                )
+                buddyService.appendMessage(ChatMessage(isFromUser: false, text: reply))
+            }
             isThinking = false
         }
     }
