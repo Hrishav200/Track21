@@ -14,6 +14,8 @@ enum BuddyActionType: String, Codable {
     case addHabit
     case updateHabit
     case deleteHabit
+    /// Renames the buddy itself (old name in habitName, new in newHabitName).
+    case renameBuddy
 }
 
 /// The status of a pending action attached to a chat message.

@@ -33,6 +33,11 @@ enum BuddyHabitActionCoordinator {
         let current = buddyService.activeConversation?.messages.first { $0.id == messageID }?.actionStatus
         guard current == nil || current == .pending else { return }
 
+        if action.type == .renameBuddy {
+            confirmBuddyRename(messageID: messageID, action: action, buddyService: buddyService)
+            return
+        }
+
         buddyService.updateMessageActionStatus(messageID: messageID, status: .confirmed)
         let outcome = BuddyHabitActionExecutor.execute(
             action,
@@ -51,6 +56,25 @@ enum BuddyHabitActionCoordinator {
             Task {
                 await viewModel.syncWithCloud(userId: userId)
             }
+        }
+    }
+
+    /// "Call yourself X" card: saves through BuddyService exactly like the
+    /// Profile → Buddy name sheet does (same validation and storage).
+    static func confirmBuddyRename(messageID: UUID, action: BuddyAction, buddyService: BuddyService) {
+        let current = buddyService.activeConversation?.messages.first { $0.id == messageID }?.actionStatus
+        guard current == nil || current == .pending else { return }
+
+        buddyService.updateMessageActionStatus(messageID: messageID, status: .confirmed)
+        if let saved = buddyService.renameBuddy(to: action.newHabitName ?? "") {
+            buddyService.updateMessageActionStatus(messageID: messageID, status: .executed)
+            buddyService.announceRename(saved)
+        } else {
+            buddyService.updateMessageActionStatus(messageID: messageID, status: .failed)
+            buddyService.appendMessage(ChatMessage(
+                isFromUser: false,
+                text: "I couldn\u{2019}t use that name. Try something with 1\u{2013}\(BuddyNameLogic.maxLength) characters."
+            ))
         }
     }
 

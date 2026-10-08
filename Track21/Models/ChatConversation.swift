@@ -66,7 +66,8 @@ struct BuddyQuickReply: Codable, Equatable, Hashable, Identifiable {
 
 struct ChatConversation: Codable, Identifiable, Equatable {
     let id: UUID
-    let buddyName: String
+    /// Buddy's name for this chat; the active chat follows a rename.
+    var buddyName: String
     let createdAt: Date
     var messages: [ChatMessage]
     var lastMessageAt: Date

@@ -28,6 +28,7 @@ struct ProfileView: View {
     @State private var showingManageSubscriptions = false
     @State private var buddyService = BuddyService.shared
     @State private var showingClearChatAlert = false
+    @State private var showingRenameBuddy = false
     @State private var showingArchive = false
     #if DEBUG
     @State private var showingDebugMenu = false
@@ -100,6 +101,11 @@ struct ProfileView: View {
             .manageSubscriptionsSheet(isPresented: $showingManageSubscriptions)
             .sheet(isPresented: $showingArchive) {
                 HabitArchiveView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingRenameBuddy) {
+                BuddyRenameSheet(currentName: buddyService.buddyName ?? BuddyNameLogic.defaultName) { newName in
+                    buddyService.renameBuddy(to: newName)
+                }
             }
             .task {
                 await loadProfile()
@@ -271,6 +277,25 @@ struct ProfileView: View {
     @ViewBuilder
     private var buddySection: some View {
         Section {
+            Button {
+                showingRenameBuddy = true
+            } label: {
+                HStack(spacing: 12) {
+                    iconBadge("person.crop.circle.fill", color: AppTheme.primary)
+                    Text("Buddy name")
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(buddyService.buddyName ?? BuddyNameLogic.defaultName)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(.tertiaryLabel))
+                }
+            }
+            .accessibilityLabel("Buddy name, \(buddyService.buddyName ?? BuddyNameLogic.defaultName)")
+            .accessibilityHint("Rename your buddy")
+
             Button(role: .destructive) {
                 showingClearChatAlert = true
             } label: {

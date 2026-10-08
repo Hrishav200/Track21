@@ -49,6 +49,12 @@ struct BuddyNamingView: View {
                 .accessibilityLabel("Buddy name")
                 .submitLabel(.done)
                 .onSubmit(continueTapped)
+                .onChange(of: name) { _, newValue in
+                    // Same limit as renaming later (BuddyNameLogic.maxLength).
+                    if newValue.count > BuddyNameLogic.maxLength {
+                        name = String(newValue.prefix(BuddyNameLogic.maxLength))
+                    }
+                }
 
             Spacer()
 

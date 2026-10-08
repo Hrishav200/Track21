@@ -19,6 +19,7 @@ struct BuddyActionCard: View {
         case .addHabit: return AppTheme.primary
         case .updateHabit: return .blue
         case .deleteHabit: return .red
+        case .renameBuddy: return AppTheme.primary
         }
     }
 
@@ -27,6 +28,7 @@ struct BuddyActionCard: View {
         case .addHabit: return "plus.circle.fill"
         case .updateHabit: return "pencil.circle.fill"
         case .deleteHabit: return "trash.circle.fill"
+        case .renameBuddy: return "person.crop.circle.fill"
         }
     }
 
@@ -35,6 +37,7 @@ struct BuddyActionCard: View {
         case .addHabit: return "New habit"
         case .updateHabit: return "Edit habit"
         case .deleteHabit: return "Delete habit"
+        case .renameBuddy: return "Rename buddy"
         }
     }
 
@@ -58,6 +61,10 @@ struct BuddyActionCard: View {
                 Text(action.displayText)
                     .font(.caption)
                     .foregroundColor(.secondary)
+            } else if action.type == .renameBuddy {
+                detailRow("Name") {
+                    Text(nameText)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     detailRow("Name") {
@@ -117,7 +124,7 @@ struct BuddyActionCard: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
-                        .accessibilityLabel(confirmTitle == "Add" ? "Add habit" : "Save habit changes")
+                        .accessibilityLabel(confirmAccessibilityLabel)
                     }
                 }
             } else {
@@ -139,8 +146,16 @@ struct BuddyActionCard: View {
         )
     }
 
+    private var confirmAccessibilityLabel: String {
+        switch action.type {
+        case .addHabit: return "Add habit"
+        case .renameBuddy: return "Save new buddy name"
+        default: return "Save habit changes"
+        }
+    }
+
     private var nameText: String {
-        if action.type == .updateHabit, let newName = action.newHabitName, newName != action.habitName {
+        if action.type == .updateHabit || action.type == .renameBuddy, let newName = action.newHabitName, newName != action.habitName {
             return "\(action.habitName) \u{2192} \(newName)"
         }
         return action.habitName

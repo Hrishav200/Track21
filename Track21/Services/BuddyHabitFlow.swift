@@ -67,6 +67,8 @@ enum BuddyHabitIntent: Equatable {
     case add(name: String?)
     case edit(target: String?, field: BuddyHabitField?, value: String?)
     case deleteUnsupported
+    /// "call yourself Max", "rename buddy to Rae", "change your name".
+    case renameBuddy(name: String?)
 }
 
 enum BuddyHabitFlowStep: Equatable {
@@ -77,6 +79,7 @@ enum BuddyHabitFlowStep: Equatable {
     case editChooseHabit(candidateIDs: [UUID], field: BuddyHabitField?, value: String?)
     case editChooseField(habitID: UUID)
     case editValue(habitID: UUID, field: BuddyHabitField)
+    case buddyName
 }
 
 struct BuddyHabitFlowState: Equatable {
@@ -106,7 +109,8 @@ enum BuddyHabitFlow {
     static func handle(
         _ rawText: String,
         state: inout BuddyHabitFlowState,
-        habits: [BuddyHabitSnapshot]
+        habits: [BuddyHabitSnapshot],
+        buddyName: String? = nil
     ) -> BuddyHabitFlowReply? {
         let text = BuddyHabitText.clean(rawText)
         guard !text.isEmpty else { return nil }
@@ -119,29 +123,38 @@ enum BuddyHabitFlow {
             // On steps that expect a choice (theme, which habit, which field)
             // a fresh request restarts the flow. Free-text steps (name, goal)
             // take the text literally so "change my mindset" can be a goal.
-            if !takesFreeText(state.step), let intent = detectIntent(text, habits: habits) {
-                return start(intent, state: &state, habits: habits)
+            if !takesFreeText(state.step), let intent = detectIntent(text, habits: habits, buddyName: buddyName) {
+                return start(intent, state: &state, habits: habits, buddyName: buddyName)
             }
             // Raw (trimmed) text so a typed or suggested goal keeps its punctuation.
             let raw = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return continueFlow(raw, state: &state, habits: habits)
+            return continueFlow(raw, state: &state, habits: habits, buddyName: buddyName)
         }
 
-        guard let intent = detectIntent(text, habits: habits) else { return nil }
-        return start(intent, state: &state, habits: habits)
+        guard let intent = detectIntent(text, habits: habits, buddyName: buddyName) else { return nil }
+        return start(intent, state: &state, habits: habits, buddyName: buddyName)
     }
 
     /// True when this message would be handled by the flow (used to keep
     /// habit-management turns out of the free daily chat cap).
-    static func willHandle(_ text: String, state: BuddyHabitFlowState, habits: [BuddyHabitSnapshot]) -> Bool {
+    static func willHandle(
+        _ text: String,
+        state: BuddyHabitFlowState,
+        habits: [BuddyHabitSnapshot],
+        buddyName: String? = nil
+    ) -> Bool {
         let cleaned = BuddyHabitText.clean(text)
         guard !cleaned.isEmpty else { return false }
-        return state.isActive || detectIntent(cleaned, habits: habits) != nil
+        return state.isActive || detectIntent(cleaned, habits: habits, buddyName: buddyName) != nil
     }
 
     // MARK: Intent detection
 
-    static func detectIntent(_ text: String, habits: [BuddyHabitSnapshot]) -> BuddyHabitIntent? {
+    static func detectIntent(
+        _ text: String,
+        habits: [BuddyHabitSnapshot],
+        buddyName: String? = nil
+    ) -> BuddyHabitIntent? {
         // Typos like "habut", "habbit", "hábit" become "habit" first.
         let core = stripPoliteness(BuddyHabitText.clean(normalizeHabitWords(text)))
         guard !core.isEmpty else { return nil }
@@ -151,6 +164,12 @@ enum BuddyHabitFlow {
         func targetIsKnown(_ target: String?) -> Bool {
             guard let target else { return false }
             return !matches(for: target, in: habits).isEmpty
+        }
+
+        // Renaming Buddy itself (checked first; a habit with the same
+        // name as the noun, e.g. a habit called "Buddy", still wins).
+        if let buddyIntent = detectBuddyRename(core, habits: habits, buddyName: buddyName) {
+            return buddyIntent
         }
 
         // Delete is never done from chat — answer it explicitly.
@@ -270,6 +289,108 @@ enum BuddyHabitFlow {
 
         // Fallback: a management verb shortly before "habit", no negation.
         return looseIntent(core)
+    }
+
+    // MARK: Renaming Buddy
+
+    static func detectBuddyRename(
+        _ core: String,
+        habits: [BuddyHabitSnapshot],
+        buddyName: String?
+    ) -> BuddyHabitIntent? {
+        func isHabitName(_ text: String) -> Bool {
+            habits.contains { BuddyHabitText.key($0.name) == BuddyHabitText.key(text) }
+        }
+
+        // "call yourself Max", "rename yourself to Max", "change your name to Max",
+        // "your new name is Max", "I'll call you Max", "from now on you're Max"
+        let direct = #"^(?:call\s+yourself|rename\s+yourself(?:\s+to|\s+as)?|change\s+your\s+name\s+to|update\s+your\s+name\s+to|your\s+name\s+is\s+now|your\s+new\s+name\s+is|i(?:'ll|’ll|\s+will|\s+want\s+to|'d\s+like\s+to|’d\s+like\s+to)\s+call\s+you|from\s+now\s+on\s+(?:you(?:'re|’re|\s+are)|you'll\s+be|you’ll\s+be)|can\s+i\s+call\s+you|i\s+(?:can|could)\s+call\s+you)\s+(.+)$"#
+        if let c = captures(direct, in: core), let value = c[0], !isNotAName(value) {
+            return .renameBuddy(name: cleanBuddyName(value))
+        }
+
+        // "rename buddy to Rae", "change the buddy's name to Rae" — unless a habit is called that.
+        let noun = #"(buddy|ai\s+buddy|coach|chatbot|bot|assistant)"#
+        if let c = captures(#"^(?:rename|change|update)\s+(?:the\s+|my\s+)?"# + noun + #"(?:'s|’s)?(?:\s+name)?\s+(?:to|as)\s+(.+)$"#, in: core),
+           let word = c[0], let value = c[1], !isHabitName(word) {
+            return .renameBuddy(name: cleanBuddyName(value))
+        }
+
+        // "rename Max to Rae" where Max is Buddy's current name (and not a habit).
+        if let buddyName,
+           let c = captures(#"^(?:rename|change)\s+(.+?)\s+(?:to|as)\s+(.+)$"#, in: core),
+           let target = c[0], let value = c[1],
+           BuddyHabitText.key(cleanTarget(target) ?? target) == BuddyHabitText.key(buddyName),
+           !isHabitName(target), !isHabitName(cleanTarget(target) ?? target) {
+            return .renameBuddy(name: cleanBuddyName(value))
+        }
+
+        // No name yet: "change your name", "rename buddy", "can I rename you?"
+        if let c = captures(#"^(?:change|rename|edit|update)\s+(?:your\s+name|yourself|(?:the\s+|my\s+)?"# + noun + #"(?:(?:'s|’s)?\s+name)?)$"#, in: core) {
+            if let word = c[0], isHabitName(word) { return nil }
+            return .renameBuddy(name: nil)
+        }
+        if let c = captures(#"^(?:can|could|may)\s+i\s+(?:rename\s+you|change\s+your\s+name)(?:\s+to\s+(.+))?$"#, in: core) {
+            return .renameBuddy(name: c[0].map { cleanBuddyName($0) })
+        }
+        return nil
+    }
+
+    /// "I'll call you later", "can I call you back?" aren't renames.
+    private static func isNotAName(_ value: String) -> Bool {
+        let lower = BuddyHabitText.clean(value).lowercased()
+        let phrases = ["later", "back", "tomorrow", "soon", "tonight", "today", "again",
+                       "in a ", "in an ", "when ", "after ", "before ", "if ", "on ", "at ", "out", "up"]
+        return phrases.contains { phrase in
+            phrase.hasSuffix(" ") ? lower.hasPrefix(phrase) : (lower == phrase || lower.hasPrefix(phrase + " "))
+        }
+    }
+
+    private static func cleanBuddyName(_ raw: String) -> String {
+        var text = BuddyHabitText.clean(raw)
+        if let range = text.range(of: #"\s+(?:now|from\s+now\s+on|instead|please|then)$"#, options: [.regularExpression, .caseInsensitive]) {
+            text.removeSubrange(range)
+        }
+        text = BuddyNameLogic.sanitize(BuddyHabitText.clean(text))
+        return capitalizedFirst(text)
+    }
+
+    private static func acceptBuddyName(
+        _ raw: String,
+        current: String?,
+        state: inout BuddyHabitFlowState
+    ) -> BuddyHabitFlowReply {
+        let candidate = cleanBuddyName(raw)
+        switch BuddyNameLogic.validate(candidate) {
+        case .empty:
+            state.step = .buddyName
+            return BuddyHabitFlowReply(text: "What would you like to call me?", quickReplies: [cancelChip])
+        case .tooLong:
+            state.step = .buddyName
+            return BuddyHabitFlowReply(
+                text: "That\u{2019}s a bit long. Pick a name with \(BuddyNameLogic.maxLength) characters or fewer.",
+                quickReplies: [cancelChip]
+            )
+        case .valid(let newName):
+            state.reset()
+            if let current, newName == current {
+                return BuddyHabitFlowReply(text: "I\u{2019}m already \(current)! \u{1F60A}")
+            }
+            return BuddyHabitFlowReply(
+                text: "Here\u{2019}s my new name. Tap Save and I\u{2019}ll go by \(newName).",
+                proposal: renameBuddyProposal(from: current, to: newName)
+            )
+        }
+    }
+
+    static func renameBuddyProposal(from current: String?, to newName: String) -> BuddyAction {
+        let old = current ?? BuddyNameLogic.defaultName
+        return BuddyAction(
+            type: .renameBuddy,
+            habitName: old,
+            displayText: "Rename \(old) to \(newName)",
+            newHabitName: newName
+        )
     }
 
     // MARK: Tolerant matching helpers
@@ -447,7 +568,7 @@ enum BuddyHabitFlow {
             .components(separatedBy: CharacterSet.letters.inverted))
         let editVerbs: Set<String> = ["change", "edit", "update", "rename", "modify", "tweak", "adjust"]
         if !words.isDisjoint(with: editVerbs), habits.contains(where: \.isEditable) {
-            return start(.edit(target: nil, field: nil, value: nil), state: &state, habits: habits)
+            return start(.edit(target: nil, field: nil, value: nil), state: &state, habits: habits, buddyName: nil)
         }
         state.step = .addName
         return BuddyHabitFlowReply(
@@ -477,12 +598,23 @@ enum BuddyHabitFlow {
     private static func start(
         _ intent: BuddyHabitIntent,
         state: inout BuddyHabitFlowState,
-        habits: [BuddyHabitSnapshot]
+        habits: [BuddyHabitSnapshot],
+        buddyName: String?
     ) -> BuddyHabitFlowReply {
         switch intent {
         case .deleteUnsupported:
             state.reset()
             return BuddyHabitFlowReply(text: deleteUnsupportedText)
+
+        case .renameBuddy(let name):
+            if let name {
+                return acceptBuddyName(name, current: buddyName, state: &state)
+            }
+            state.step = .buddyName
+            return BuddyHabitFlowReply(
+                text: "Sure! What would you like to call me?",
+                quickReplies: [cancelChip]
+            )
 
         case .add(let name):
             if let name {
@@ -540,11 +672,15 @@ enum BuddyHabitFlow {
     private static func continueFlow(
         _ text: String,
         state: inout BuddyHabitFlowState,
-        habits: [BuddyHabitSnapshot]
+        habits: [BuddyHabitSnapshot],
+        buddyName: String?
     ) -> BuddyHabitFlowReply? {
         switch state.step {
         case .idle:
             return nil
+
+        case .buddyName:
+            return acceptBuddyName(text, current: buddyName, state: &state)
 
         case .addName:
             return acceptAddName(text, state: &state, habits: habits)
@@ -822,7 +958,7 @@ enum BuddyHabitFlow {
 
     private static func takesFreeText(_ step: BuddyHabitFlowStep) -> Bool {
         switch step {
-        case .addName, .addGoal:
+        case .addName, .addGoal, .buddyName:
             return true
         case .editValue(_, let field):
             return field != .theme
@@ -1005,7 +1141,8 @@ enum BuddyHabitActionExecutor {
         guard status == .confirmed else { return .notConfirmed }
 
         switch action.type {
-        case .deleteHabit:
+        case .deleteHabit, .renameBuddy:
+            // Delete isn't supported; Buddy renames go through BuddyService.
             return .unsupported
 
         case .addHabit:

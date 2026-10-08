@@ -293,7 +293,7 @@ struct BuddyLiteChatView: View {
         guard !text.isEmpty else { return }
 
         // Guided add/edit turns don't use up the free daily chat messages.
-        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots)
+        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots, buddyName: buddyName)
         if !isHabitFlowTurn {
             guard BuddyChatUsageLogic.canSendMessage(
                 sentToday: buddyService.messagesSentToday,
@@ -326,7 +326,7 @@ struct BuddyLiteChatView: View {
         isThinking = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
-            if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots) {
+            if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots, buddyName: buddyName) {
                 BuddyHabitActionCoordinator.post(flowReply, to: buddyService)
             } else {
                 let reply = BuddyLogic.liteReply(

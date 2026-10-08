@@ -16,6 +16,9 @@ final class BuddyService {
 
     private(set) var buddyName: String?
 
+    /// Injected for tests; the app uses `.standard` via `shared`.
+    private let defaults: UserDefaults
+
     private let buddyNameKey = "Track21BuddyName"
     private let lastNudgeDateKey = "Track21BuddyLastNudgeDate"
     private let nudgeIdentifier = "buddy-nudge"
@@ -54,13 +57,14 @@ final class BuddyService {
 
     private var center: UNUserNotificationCenter { UNUserNotificationCenter.current() }
 
-    private init() {
-        buddyName = UserDefaults.standard.string(forKey: buddyNameKey)
-        chatDays = Set(UserDefaults.standard.stringArray(forKey: chatDaysKey) ?? [])
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        buddyName = defaults.string(forKey: buddyNameKey)
+        chatDays = Set(defaults.stringArray(forKey: chatDaysKey) ?? [])
 
-        if let storedDate = UserDefaults.standard.object(forKey: dailyMessageDateKey) as? Date,
+        if let storedDate = defaults.object(forKey: dailyMessageDateKey) as? Date,
            Calendar.current.isDateInToday(storedDate) {
-            messagesSentToday = UserDefaults.standard.integer(forKey: dailyMessageCountKey)
+            messagesSentToday = defaults.integer(forKey: dailyMessageCountKey)
         }
 
         loadConversations()
@@ -75,25 +79,81 @@ final class BuddyService {
         let key = Self.dayFormatter.string(from: date)
         if !chatDays.contains(key) {
             chatDays.insert(key)
-            UserDefaults.standard.set(Array(chatDays), forKey: chatDaysKey)
+            defaults.set(Array(chatDays), forKey: chatDaysKey)
         }
         guard countsTowardLimit else { return }
 
-        let storedDate = UserDefaults.standard.object(forKey: dailyMessageDateKey) as? Date
+        let storedDate = defaults.object(forKey: dailyMessageDateKey) as? Date
         if let storedDate, Calendar.current.isDate(storedDate, inSameDayAs: date) {
             messagesSentToday += 1
         } else {
             messagesSentToday = 1
-            UserDefaults.standard.set(date, forKey: dailyMessageDateKey)
+            defaults.set(date, forKey: dailyMessageDateKey)
         }
-        UserDefaults.standard.set(messagesSentToday, forKey: dailyMessageCountKey)
+        defaults.set(messagesSentToday, forKey: dailyMessageCountKey)
     }
 
-    func saveBuddyName(_ name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        buddyName = trimmed
-        UserDefaults.standard.set(trimmed, forKey: buddyNameKey)
+    /// First-launch naming. Lenient: an over-long name is shortened rather
+    /// than rejected so onboarding can always continue.
+    @discardableResult
+    func saveBuddyName(_ name: String) -> Bool {
+        let sanitized = BuddyNameLogic.sanitize(name)
+        guard !sanitized.isEmpty else { return false }
+        let finalName = String(sanitized.prefix(BuddyNameLogic.maxLength))
+            .trimmingCharacters(in: .whitespaces)
+        buddyName = finalName
+        defaults.set(finalName, forKey: buddyNameKey)
+        return true
+    }
+
+    /// Renames Buddy after onboarding (Profile, chat header, chat flow).
+    /// Strict validation; persists exactly like the first-launch name
+    /// (local UserDefaults, the name isn't synced to Supabase). Returns the
+    /// saved name, or nil if invalid.
+    @discardableResult
+    func renameBuddy(to name: String, updatePendingNudge: Bool = true) -> String? {
+        guard case .valid(let newName) = BuddyNameLogic.validate(name) else { return nil }
+        buddyName = newName
+        defaults.set(newName, forKey: buddyNameKey)
+        // The open chat (shown in Chat History) follows the new name.
+        if let index = conversations.firstIndex(where: { $0.id == activeConversationID }),
+           conversations[index].buddyName != newName {
+            conversations[index].buddyName = newName
+            persistConversations()
+        }
+        if updatePendingNudge {
+            refreshPendingNudgeTitle(newName)
+        }
+        return newName
+    }
+
+    /// Posts a short note in the open conversation so the new name shows in chat right away.
+    func announceRename(_ newName: String) {
+        guard activeConversation != nil else { return }
+        appendMessage(ChatMessage(isFromUser: false, text: "Love it. Call me \(newName) from now on!"))
+    }
+
+    /// A nudge already scheduled under the old name gets the new title,
+    /// keeping its original fire time.
+    private func refreshPendingNudgeTitle(_ newName: String) {
+        let center = center
+        let identifier = nudgeIdentifier
+        Task {
+            let pending = await center.pendingNotificationRequests()
+            guard let request = pending.first(where: { $0.identifier == identifier }),
+                  let content = request.content.mutableCopy() as? UNMutableNotificationContent else { return }
+            content.title = newName
+            var trigger = request.trigger
+            if let interval = request.trigger as? UNTimeIntervalNotificationTrigger,
+               let fireDate = interval.nextTriggerDate() {
+                trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: max(60, fireDate.timeIntervalSinceNow),
+                    repeats: false
+                )
+            }
+            let updated = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+            try? await center.add(updated)
+        }
     }
 
     /// Call once per app foreground. Schedules a single nudge notification
@@ -101,7 +161,7 @@ final class BuddyService {
     /// no-ops otherwise so repeated calls don't stack up duplicate nudges.
     func scheduleNudgeIfNeeded(for habits: [Habit], now: Date = Date()) {
         guard let buddyName else { return }
-        let lastNudgeDate = UserDefaults.standard.object(forKey: lastNudgeDateKey) as? Date
+        let lastNudgeDate = defaults.object(forKey: lastNudgeDateKey) as? Date
         guard BuddyLogic.isNudgeDue(lastNudgeDate: lastNudgeDate, now: now) else { return }
 
         let category = BuddyLogic.category(for: habits, now: now)
@@ -119,18 +179,18 @@ final class BuddyService {
 
         center.removePendingNotificationRequests(withIdentifiers: [nudgeIdentifier])
         center.add(request)
-        UserDefaults.standard.set(now, forKey: lastNudgeDateKey)
+        defaults.set(now, forKey: lastNudgeDateKey)
     }
 
     // MARK: - Chat History
 
     /// Loads conversations from UserDefaults on init.
     private func loadConversations() {
-        if let data = UserDefaults.standard.data(forKey: conversationsKey),
+        if let data = defaults.data(forKey: conversationsKey),
            let decoded = try? JSONDecoder().decode([ChatConversation].self, from: data) {
             conversations = decoded.sorted { $0.lastMessageAt > $1.lastMessageAt }
         }
-        if let idString = UserDefaults.standard.string(forKey: activeConversationIDKey),
+        if let idString = defaults.string(forKey: activeConversationIDKey),
            let id = UUID(uuidString: idString) {
             activeConversationID = id
         }
@@ -174,23 +234,23 @@ final class BuddyService {
     /// Resumes an existing conversation by setting it as active.
     func resumeConversation(_ conversation: ChatConversation) {
         activeConversationID = conversation.id
-        UserDefaults.standard.set(conversation.id.uuidString, forKey: activeConversationIDKey)
+        defaults.set(conversation.id.uuidString, forKey: activeConversationIDKey)
     }
 
     /// Clears all chat history.
     func clearChatHistory() {
         conversations = []
         activeConversationID = nil
-        UserDefaults.standard.removeObject(forKey: conversationsKey)
-        UserDefaults.standard.removeObject(forKey: activeConversationIDKey)
+        defaults.removeObject(forKey: conversationsKey)
+        defaults.removeObject(forKey: activeConversationIDKey)
     }
 
     private func persistConversations() {
         if let data = try? JSONEncoder().encode(conversations) {
-            UserDefaults.standard.set(data, forKey: conversationsKey)
+            defaults.set(data, forKey: conversationsKey)
         }
         if let id = activeConversationID {
-            UserDefaults.standard.set(id.uuidString, forKey: activeConversationIDKey)
+            defaults.set(id.uuidString, forKey: activeConversationIDKey)
         }
     }
 
@@ -198,11 +258,11 @@ final class BuddyService {
         buddyName = nil
         chatDays = []
         messagesSentToday = 0
-        UserDefaults.standard.removeObject(forKey: buddyNameKey)
-        UserDefaults.standard.removeObject(forKey: lastNudgeDateKey)
-        UserDefaults.standard.removeObject(forKey: chatDaysKey)
-        UserDefaults.standard.removeObject(forKey: dailyMessageCountKey)
-        UserDefaults.standard.removeObject(forKey: dailyMessageDateKey)
+        defaults.removeObject(forKey: buddyNameKey)
+        defaults.removeObject(forKey: lastNudgeDateKey)
+        defaults.removeObject(forKey: chatDaysKey)
+        defaults.removeObject(forKey: dailyMessageCountKey)
+        defaults.removeObject(forKey: dailyMessageDateKey)
         center.removePendingNotificationRequests(withIdentifiers: [nudgeIdentifier])
         clearChatHistory()
     }

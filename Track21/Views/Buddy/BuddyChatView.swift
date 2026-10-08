@@ -18,6 +18,8 @@ struct BuddyChatView: View {
     /// state survives tab switches, but its input must resign first responder.
     var isTabActive: Bool = true
 
+    @State private var showingRename = false
+
     var body: some View {
         NavigationStack {
             Group {
@@ -40,6 +42,30 @@ struct BuddyChatView: View {
             }
             .navigationTitle(buddyName)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Plain title; tapping it opens the rename sheet (no visual hint).
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        showingRename = true
+                    } label: {
+                        Text(buddyName)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(buddyName)
+                    .accessibilityHint("Rename your buddy")
+                }
+            }
+            .sheet(isPresented: $showingRename) {
+                BuddyRenameSheet(currentName: buddyName) { newName in
+                    let service = BuddyService.shared
+                    if let saved = service.renameBuddy(to: newName) {
+                        service.announceRename(saved)
+                    }
+                }
+            }
         }
     }
 }
@@ -107,6 +133,12 @@ private struct BuddyChatAvailableView: View {
             guard !active else { return }
             isInputFocused = false
             BuddyKeyboard.dismiss()
+        }
+        .onChange(of: buddyName) { _, newName in
+            // The model's instructions carry the name, so start a fresh session.
+            if engine != nil {
+                engine = BuddyChatEngine(buddyName: newName)
+            }
         }
         .onDisappear {
             // Only dismiss when this tab is already inactive. Keyboard/layout
@@ -268,7 +300,7 @@ private struct BuddyChatAvailableView: View {
         guard !text.isEmpty, let engine else { return }
 
         // Guided add/edit turns don't use up the free daily chat messages.
-        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots)
+        let isHabitFlowTurn = BuddyHabitFlow.willHandle(text, state: habitFlow, habits: habitSnapshots, buddyName: buddyName)
         if !isHabitFlowTurn {
             guard BuddyChatUsageLogic.canSendMessage(sentToday: buddyService.messagesSentToday, isPremium: premiumService.isPremium) else {
                 showingPaywall = true
@@ -305,7 +337,7 @@ private struct BuddyChatAvailableView: View {
         // Add/edit habit requests are handled deterministically by the
         // shared flow (same as Buddy Lite) — the model is never asked to
         // change habits, so it can't write anything silently.
-        if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots) {
+        if let flowReply = BuddyHabitFlow.handle(text, state: &habitFlow, habits: habitSnapshots, buddyName: buddyName) {
             BuddyHabitActionCoordinator.post(flowReply, to: buddyService)
             return
         }
