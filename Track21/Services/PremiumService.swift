@@ -17,7 +17,7 @@ final class PremiumService {
 
     static let monthlyID = "com.yourbaecodes.trackHabit.pro.monthly"
     static let annualID = "com.yourbaecodes.trackHabit.pro.annual"
-    static let lifetimeID = "com.yourbaecodes.trackHabit.pro.lifetime"
+    static let lifetimeID = "com.yourbaecodes.trackHabit.pro.lifetime2"
     static let allProductIDs = [monthlyID, annualID, lifetimeID]
 
     private(set) var products: [Product] = []
