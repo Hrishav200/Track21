@@ -8,15 +8,20 @@ import SwiftUI
 
 struct EmptyHabitsView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "list.bullet.clipboard")
-                .font(.system(size: 48))
-                .foregroundColor(.gray.opacity(0.5))
-                .accessibilityHidden(true)
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.primary.opacity(0.12))
+                    .frame(width: 84, height: 84)
+                Image(systemName: "list.bullet.clipboard")
+                    .font(.system(size: 32))
+                    .foregroundColor(AppTheme.primary)
+            }
+            .accessibilityHidden(true)
 
             Text("No habits yet")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary)
 
             Text("Tap the + button to add your first habit")
                 .font(.subheadline)

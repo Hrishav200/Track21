@@ -22,6 +22,6 @@ enum AppTheme {
     /// Missed habit indicator (amber)
     static let missed = Color(lightHex: "FFB347", darkHex: "FFB347")
 
-    /// Tab bar / toolbar background
-    static let tabBarBackground = Color(lightHex: "FFFFFF", darkHex: "1C1C1E")
+    /// Streak-freeze protected day indicator (ice blue)
+    static let frozen = Color(lightHex: "5AC8E8", darkHex: "5AC8E8")
 }
